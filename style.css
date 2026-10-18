@@ -1,0 +1,36 @@
+/*
+ * style.css — немного "ручного" CSS поверх Tailwind.
+ * Почти весь внешний вид задаётся классами Tailwind прямо в app.js
+ * (className="..."). Здесь — только то, что Tailwind сам не умеет:
+ * анимация пузырей и общие базовые настройки страницы.
+ */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Убирает серую вспышку при тапе по кнопкам на телефоне */
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, select, button { font: inherit; }
+
+/* Анимация "плавания" пузырей на фоне (используется в Bubbles, app.js).
+   from/to двигают пузырь на случайное смещение (--dx/--dy), заданное
+   для каждого пузыря отдельно через инлайн-style, и за счёт
+   animation-direction: alternate пузырь плывёт туда-обратно. */
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(var(--dx), var(--dy), 0); }
+}
+
+.bubble {
+  position: absolute;
+  border-radius: 9999px;
+  animation: drift ease-in-out infinite alternate;
+  /* Лёгкая выпуклость — тень внутри круга создаёт эффект объёма */
+  box-shadow:
+    inset -6px -8px 18px rgba(0, 0, 0, .14),
+    inset 5px 6px 14px rgba(255, 255, 255, .3);
+}
