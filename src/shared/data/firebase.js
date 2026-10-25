@@ -2,15 +2,12 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyATtvVQIVA-YZhkmSr47L-sgOheIABjMME',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'cfteasite.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'cfteasite',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:700771274790:web:2000b87b68277368d8d6e7'
 };
 
-const firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
-const app = firebaseConfigured
-  ? (getApps()[0] || initializeApp(firebaseConfig))
-  : null;
+const app = getApps()[0] || initializeApp(firebaseConfig);
 
-export const auth = app ? getAuth(app) : null;
+export const auth = getAuth(app);

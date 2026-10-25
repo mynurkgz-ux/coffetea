@@ -12,8 +12,8 @@ Coffetea использует Firebase Authentication passwordless email link. F
 ## 2. Настройте Web App
 
 1. В настройках Firebase-проекта найдите конфигурацию Web App: `apiKey`, `authDomain`, `projectId` и `appId`.
-2. Создайте в корне проекта `.env.local` на основе `.env.example` и вставьте значения. Этот файл исключён из Git.
-3. Перезапустите Vite после изменения `.env.local`:
+2. Для локальной разработки можно создать в корне `.env.local` на основе `.env.example`. Этот файл исключён из Git. Для production-конфигурации задайте в Vercel Project Settings → Environment Variables переменные `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, затем сделайте новый deployment. В приложении также есть публичная конфигурация проекта `cfteasite` по умолчанию, поэтому эти переменные в Vercel можно не задавать, если используется этот Firebase-проект.
+3. После изменения `.env.local` перезапустите Vite:
 
    ```powershell
    npm.cmd run dev
