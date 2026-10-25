@@ -1,0 +1,55 @@
+export function uid(){return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);}
+// 6-значный код подтверждения (как бы приходит на почту/в мессенджер).
+// В демо-режиме мы его просто показываем на экране, а не отправляем по-настоящему.
+// 6-символьный код заведения (для покупателей, администратора, кассира) —
+// буквы и цифры, без похожих друг на друга символов (0/O, 1/I и т.п. не используются).
+export function genCode(){const A='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';let s='';for(let i=0;i<6;i++)s+=A[Math.floor(Math.random()*A.length)];return s;}
+export function rolePath(role){
+  if(role==='owner') return '/owner';
+  if(role==='admin') return '/admin';
+  if(role==='cashier') return '/cashier';
+  if(role==='buyer') return '/buyer';
+  return '/';
+}
+// Красиво отформатировать цену: 1234.5 -> "1 234,5 сом".
+export function money(n,c){return Number(n).toLocaleString('ru-RU',{maximumFractionDigits:2})+'\u00A0'+c;}
+// Цена товара с учётом скидки, округлённая до копеек.
+export function finalPrice(p){return Math.round(p.price*(100-(p.discount||0)))/100;}
+// Привести код заведения к единому виду перед сравнением:
+// убрать пробелы и перевести в верхний регистр ("k7f3 qz" -> "K7F3QZ").
+export function normCode(v){return String(v||'').replace(/\s+/g,'').toUpperCase();}
+// Сжать загруженную картинку перед сохранением (фото товара, обои, QR-код).
+// Файлы хранятся прямо внутри базы (как длинная строка base64), поэтому
+// важно не пустить туда картинку в оригинальном размере на 10 МБ —
+// иначе localStorage браузера быстро переполнится.
+// Возвращает Promise с уменьшенной картинкой в виде data:-ссылки.
+export function shrink(file,max){
+  max=max||760;
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('read'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>rej(new Error('img'));
+      im.onload=()=>{
+        const k=Math.min(1,max/Math.max(im.width,im.height));
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(im.width*k)); c.height=Math.max(1,Math.round(im.height*k));
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        res(c.toDataURL('image/jpeg',.82));
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+// ===== "База данных" приложения =====
+// Полноценного сервера у демо-версии нет: все заведения, товары, заказы
+// и то, кто сейчас вошёл в аккаунт, хранятся в одном объекте `db`
+// и сохраняются в localStorage браузера (см. App ниже). Это значит,
+// что владелец и покупатель видят общие данные, только если открывают
+// приложение в одном и том же браузере на одном устройстве.
+
+// Исходные данные "из коробки": одно демонстрационное заведение с двумя
+// товарами, чтобы сразу было что посмотреть и с чем потестировать покупку.

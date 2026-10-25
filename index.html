@@ -3,28 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Coffetea — React</title>
+<title>Coffetea</title>
 
-<!-- Tailwind: превращает классы вроде className="flex gap-2" прямо
-     в браузере в настоящий CSS. Никакой сборки не нужно. -->
-<script src="https://cdn.tailwindcss.com"></script>
-
-<!-- Свой маленький файл стилей: анимация пузырей и базовые настройки. -->
-<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- Сюда React вставит всё приложение целиком (см. самый низ app.js). -->
 <div id="root"></div>
-
-<!-- React и ReactDOM — сама библиотека React и модуль для работы с браузером. -->
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-
-<!-- Babel: превращает JSX (html прямо внутри JS) в обычный JavaScript
-     прямо в браузере, без отдельной сборки проекта. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.28.4/babel.min.js"></script>
-
-<!-- Весь код приложения — в отдельном файле app.js, с подробными комментариями. -->
-<script type="text/babel" data-presets="react" src="app.js"></script>
+<script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
