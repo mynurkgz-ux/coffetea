@@ -11,7 +11,16 @@ const EMAIL_FLOW_KEY='coffetea_email_link_flow';
 
 export function Welcome({db,toast,finish}){
   const [a,setA]=useState(null);
+  const [intro,setIntro]=useState('visible');
   const handlingLink=useRef(false);
+  useEffect(()=>{
+    const leaveTimer=window.setTimeout(()=>setIntro('leaving'),2200);
+    const finishTimer=window.setTimeout(()=>setIntro('hidden'),2800);
+    return ()=>{
+      window.clearTimeout(leaveTimer);
+      window.clearTimeout(finishTimer);
+    };
+  },[]);
   function startRegister(){setA({mode:'register',step:'role',role:null,contact:'',err:''});}
   function startLogin(){setA({mode:'login',step:'contact',role:null,contact:'',err:''});}
   function pickRole(role){setA(s=>({...s,role,step:s.firebaseUid?(role==='owner'?'business':'link'):'contact'}));}
@@ -121,6 +130,25 @@ export function Welcome({db,toast,finish}){
   const demo=db.users.find(u=>u.id==='u_demo');
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-5 text-center px-6 text-white relative z-[1]">
+      {intro!=='hidden'&&<div className={`welcome-splash ${intro==='leaving'?'welcome-splash-leaving':''}`} role="status" aria-label="Добро пожаловать в Coffetea">
+        <div className="welcome-bubbles" aria-hidden="true">
+          <span className="welcome-bubble welcome-bubble-1"/>
+          <span className="welcome-bubble welcome-bubble-2"/>
+          <span className="welcome-bubble welcome-bubble-3"/>
+          <span className="welcome-bubble welcome-bubble-4"/>
+          <span className="welcome-bubble welcome-bubble-5"/>
+          <span className="welcome-bubble welcome-bubble-6"/>
+          <span className="welcome-bubble welcome-bubble-7"/>
+          <span className="welcome-bubble welcome-bubble-8"/>
+        </div>
+        <div className="welcome-splash-content">
+          <span className="welcome-splash-logo">C</span>
+          <p className="welcome-splash-brand">Coffetea</p>
+          <h1>Добро пожаловать</h1>
+          <p className="welcome-splash-caption">Вход для сотрудников</p>
+        </div>
+        <button type="button" className="welcome-splash-skip" onClick={()=>setIntro('hidden')}>Пропустить</button>
+      </div>}
       <p className="absolute top-6 font-extrabold text-lg">Coffetea</p>
       <button onClick={startRegister} className="w-36 h-36 rounded-full bg-white text-[var(--accent)] text-6xl font-light shadow-xl active:scale-95 transition">+</button>
       <h1 className="font-extrabold text-xl max-w-xs">Нажмите +, чтобы начать</h1>
