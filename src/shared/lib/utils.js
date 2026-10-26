@@ -4,6 +4,11 @@ export function uid(){return Math.random().toString(36).slice(2,9)+Date.now().to
 // 6-символьный код заведения (для покупателей, администратора, кассира) —
 // буквы и цифры, без похожих друг на друга символов (0/O, 1/I и т.п. не используются).
 export function genCode(){const A='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';let s='';for(let i=0;i<6;i++)s+=A[Math.floor(Math.random()*A.length)];return s;}
+export function genStaffCode(){
+  const bytes=new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
 export function rolePath(role){
   if(role==='owner') return '/owner';
   if(role==='admin') return '/admin';
@@ -19,9 +24,8 @@ export function finalPrice(p){return Math.round(p.price*(100-(p.discount||0)))/1
 // убрать пробелы и перевести в верхний регистр ("k7f3 qz" -> "K7F3QZ").
 export function normCode(v){return String(v||'').replace(/\s+/g,'').toUpperCase();}
 // Сжать загруженную картинку перед сохранением (фото товара, обои, QR-код).
-// Файлы хранятся прямо внутри базы (как длинная строка base64), поэтому
-// важно не пустить туда картинку в оригинальном размере на 10 МБ —
-// иначе localStorage браузера быстро переполнится.
+// Изображения остаются data URL, поэтому их нужно уменьшать до записи
+// в документ Firestore.
 // Возвращает Promise с уменьшенной картинкой в виде data:-ссылки.
 export function shrink(file,max){
   max=max||760;
@@ -43,13 +47,3 @@ export function shrink(file,max){
     fr.readAsDataURL(file);
   });
 }
-
-// ===== "База данных" приложения =====
-// Полноценного сервера у демо-версии нет: все заведения, товары, заказы
-// и то, кто сейчас вошёл в аккаунт, хранятся в одном объекте `db`
-// и сохраняются в localStorage браузера (см. App ниже). Это значит,
-// что владелец и покупатель видят общие данные, только если открывают
-// приложение в одном и том же браузере на одном устройстве.
-
-// Исходные данные "из коробки": одно демонстрационное заведение с двумя
-// товарами, чтобы сразу было что посмотреть и с чем потестировать покупку.

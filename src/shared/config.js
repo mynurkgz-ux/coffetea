@@ -1,5 +1,3 @@
-export const KEY='coffetea_react_v1';
-
 // Валюты, которые можно выбрать в форме товара.
 export const CURR=['сом','₽','$','€'];
 

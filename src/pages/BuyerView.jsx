@@ -4,7 +4,7 @@ import { finalPrice, money, uid } from '../shared/lib/utils.js';
 import { btnCls } from '../shared/ui/styles.js';
 import { Modal } from '../shared/ui/index.jsx';
 
-export function BuyerView({db,update,me,theme,setTheme,musicCtl}){
+export function BuyerView({db,update,me,theme,setTheme,publicTheme,setPublicSiteTheme,musicCtl}){
   const owner=db.users.find(u=>u.id===me.ownerId);
   const list=db.products.filter(p=>p.ownerId===me.ownerId).sort((a,b)=>b.t-a.t);
   // Корзина этого покупателя: объект вида {идТовара: количество}.
@@ -32,7 +32,7 @@ export function BuyerView({db,update,me,theme,setTheme,musicCtl}){
   function pay(){
     const snap=items.map(({p,q})=>({name:p.name,qty:q,price:finalPrice(p),currency:p.currency}));
     const id=uid();
-    const order={id,code:id.slice(-4).toUpperCase(),ownerId:owner.id,buyerContact:me.contact,items:snap,total:money(Math.round(total*100)/100,cur),t:Date.now(),status:'new'};
+    const order={id,code:id.slice(-4).toUpperCase(),ownerId:owner.id,buyerId:me.id,buyerContact:me.contact,items:snap,total:money(Math.round(total*100)/100,cur),t:Date.now(),status:'new'};
     update(d=>{d.orders.push(order);d.carts[me.id]={};});
     setModal({receipt:order});
   }
@@ -112,7 +112,7 @@ export function BuyerView({db,update,me,theme,setTheme,musicCtl}){
           </div>
         </Modal>
       )}
-      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme}/>}
+      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>}
       {modal&&modal.receipt&&(
         <Modal title="Спасибо за покупку!" onClose={()=>setModal(null)}>
           <div className="space-y-3 text-center">

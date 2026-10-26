@@ -6,7 +6,7 @@ import { MusicBtn, QrModal, SettingsModal } from '../features/settings/component
 import { uid } from '../shared/lib/utils.js';
 import { btnCls, btnGhost, inputCls } from '../shared/ui/styles.js';
 
-export function OwnerView({db,update,me,toast,theme,setTheme,musicCtl}){
+export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPublicSiteTheme,musicCtl}){
   // isOwner===true только у роли 'owner'. У администратора (role==='admin')
   // isOwner===false, и дальше по коду это используется, чтобы спрятать
   // кнопку QR и разделы кодов/обоев/музыки в настройках — у администратора
@@ -194,7 +194,7 @@ export function OwnerView({db,update,me,toast,theme,setTheme,musicCtl}){
           условие которого сейчас истинно (остальные — ничего, null). */}
       {modal==='add'&&<ProductForm onSave={d=>saveProduct(d,null)} onClose={()=>setModal(null)}/>}
       {editing&&<ProductForm product={editing} onSave={d=>saveProduct(d,modal.edit)} onDelete={()=>delProduct(modal.edit)} onClose={()=>setModal(null)}/>}
-      {modal==='settings'&&<SettingsModal isOwner={isOwner} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={toast} theme={theme} setTheme={setTheme}/>}
+      {modal==='settings'&&<SettingsModal isOwner={isOwner} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>}
       {modal==='qr'&&isOwner&&<QrModal owner={owner} update={update} onClose={()=>setModal(null)} toast={toast}/>}
     </div>
   );

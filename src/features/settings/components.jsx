@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Field, Modal } from '../../shared/ui/index.jsx';
 import { btnCls, btnGhost, inputCls } from '../../shared/ui/styles.js';
 import { THEMES } from '../../shared/config.js';
-import { genCode, shrink } from '../../shared/lib/utils.js';
+import { genCode, genStaffCode, shrink } from '../../shared/lib/utils.js';
 
-export function ThemeModal({theme,setTheme,onClose}){
+export function ThemeModal({theme,setTheme,onClose,title='Изменить тему'}){
   return (
-    <Modal title="Изменить тему" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <div className="grid grid-cols-3 gap-3">
         {THEMES.map(t=>(
           <button key={t.key} onClick={()=>setTheme(t.key)} className={"rounded-2xl border-2 p-2 text-xs font-bold "+(theme===t.key?'border-black':'border-[var(--border)]')}>
@@ -20,7 +20,7 @@ export function ThemeModal({theme,setTheme,onClose}){
 }
 // Окно загрузки своих обоев (фон меню вместо пузырей). Доступно только
 // владельцу. update(...) — это функция из App, которая меняет общую базу
-// db и сама пересохраняет её в localStorage (см. App ниже).
+// db и сохраняет изменения в Firestore.
 export function WallpaperModal({owner,update,onClose,toast}){
   function onFile(e){
     const f=e.target.files[0]; if(!f) return;
@@ -42,7 +42,7 @@ export function WallpaperModal({owner,update,onClose,toast}){
   );
 }
 // Окно загрузки фоновой музыки. Файл проверяем на тип (должен быть
-// аудио) и размер (до 4 МБ — localStorage не резиновый). Саму музыку
+// аудио) и размер (до 4 МБ). Саму музыку
 // не запускаем — только сохраняем; играть она начнёт, когда кто-то сам
 // нажмёт на значок ноты (см. MusicBtn и App.toggleMusic).
 export function MusicModal({owner,update,onClose,toast}){
@@ -76,7 +76,7 @@ export function MusicModal({owner,update,onClose,toast}){
 //  - "Изменить тему" — видят все, тема общая на устройство
 // sub хранит, какое под-окно сейчас открыто ('theme'/'wallpaper'/'music'),
 // null — открыто только само окно настроек.
-export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,theme,setTheme}){
+export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,theme,setTheme,publicTheme,setPublicSiteTheme}){
   const [sub,setSub]=useState(null);
   function saveBiz(e){
     e.preventDefault();
@@ -84,7 +84,7 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
     update(d=>{d.users.find(u=>u.id===owner.id).business=n.slice(0,60);});
     toast('Сохранено');
   }
-  function regen(field){update(d=>{d.users.find(u=>u.id===owner.id)[field]=genCode();});}
+  function regen(field){update(d=>{d.users.find(u=>u.id===owner.id)[field]=field==='joinCode'?genCode():genStaffCode();});}
   return (
     <Modal title="Настройки" onClose={onClose}>
       <div className="space-y-5">
@@ -98,11 +98,17 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
             <output className="flex-1 h-11 rounded-xl bg-[var(--field)] border-2 border-[var(--border)] flex items-center justify-center font-bold tracking-widest">{owner.joinCode}</output>
             <button onClick={()=>regen('joinCode')} className="h-11 px-3 rounded-xl border-2 border-[var(--border)] text-sm font-bold">Новый</button>
           </div>
-          <p className="font-bold text-sm mt-3">Код для администратора и кассира</p>
+          <p className="font-bold text-sm mt-3">Одноразовый код администратора</p>
+          <div className="flex gap-2 items-center">
+            <output className="flex-1 h-11 rounded-xl bg-[var(--field)] border-2 border-[var(--border)] flex items-center justify-center font-bold tracking-widest">{owner.adminCode||'Не создан'}</output>
+            <button onClick={()=>regen('adminCode')} className="h-11 px-3 rounded-xl border-2 border-[var(--border)] text-sm font-bold">Создать</button>
+          </div>
+          <p className="font-bold text-sm mt-3">Одноразовый код кассира</p>
           <div className="flex gap-2 items-center">
             <output className="flex-1 h-11 rounded-xl bg-[var(--field)] border-2 border-[var(--border)] flex items-center justify-center font-bold tracking-widest">{owner.staffCode}</output>
-            <button onClick={()=>regen('staffCode')} className="h-11 px-3 rounded-xl border-2 border-[var(--border)] text-sm font-bold">Новый</button>
+            <button onClick={()=>regen('staffCode')} className="h-11 px-3 rounded-xl border-2 border-[var(--border)] text-sm font-bold">Создать</button>
           </div>
+          <p className="text-xs text-[var(--soft)]">Каждый код можно использовать один раз. Создавайте новый код для каждого сотрудника нужной роли.</p>
         </div>}
         <div className="space-y-2">
           <p className="font-bold text-sm">Оформление</p>
@@ -110,6 +116,13 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
             <span className="w-8 h-8 rounded-full shrink-0" style={{background:`linear-gradient(135deg, var(--bgFrom), var(--bgTo))`}}/>
             <span className="flex-1 font-bold text-sm">Изменить тему</span>
           </button>
+          {me.siteAdmin&&<button onClick={()=>setSub('publicTheme')} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-[var(--border)] text-left">
+            <span className="w-8 h-8 rounded-full shrink-0" style={{background:`linear-gradient(135deg, var(--bgFrom), var(--bgTo))`}}/>
+            <span className="flex-1">
+              <b className="block text-sm">Тема главной сайта</b>
+              <span className="text-xs text-[var(--soft)]">Видна всем посетителям</span>
+            </span>
+          </button>}
         </div>
         {isOwner&&<div className="space-y-2">
           <p className="font-bold text-sm">Добавить</p>
@@ -121,6 +134,7 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
           <button onClick={onLogout} className={btnGhost}>Выйти</button>
         </div>
         {sub==='theme'&&<ThemeModal theme={theme} setTheme={setTheme} onClose={()=>setSub(null)}/>}
+        {sub==='publicTheme'&&me.siteAdmin&&<ThemeModal title="Тема главной сайта" theme={publicTheme} setTheme={setPublicSiteTheme} onClose={()=>setSub(null)}/>}
         {sub==='wallpaper'&&isOwner&&<WallpaperModal owner={owner} update={update} onClose={()=>setSub(null)} toast={toast}/>}
         {sub==='music'&&isOwner&&<MusicModal owner={owner} update={update} onClose={()=>setSub(null)} toast={toast}/>}
       </div>

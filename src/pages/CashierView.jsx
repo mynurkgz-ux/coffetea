@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
 import { SettingsModal } from '../features/settings/components.jsx';
 
-export function CashierView({db,update,me,theme,setTheme}){
+export function CashierView({db,update,me,theme,setTheme,publicTheme,setPublicSiteTheme}){
   const owner=db.users.find(u=>u.id===me.ownerId);
   const orders=db.orders.filter(o=>o.ownerId===me.ownerId).sort((a,b)=>b.t-a.t);
   function toggle(id,status){update(d=>{const o=d.orders.find(x=>x.id===id); if(o)o.status=status;});}
@@ -19,7 +19,7 @@ export function CashierView({db,update,me,theme,setTheme}){
       <div className="p-4 max-w-xl mx-auto space-y-3">
         {orders.length?orders.map(o=><OrderCard key={o.id} o={o} onToggle={toggle}/>):<p className="text-center text-white/80 py-20">Заказов пока нет</p>}
       </div>
-      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner||{}} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme}/>}
+      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner||{}} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>}
     </div>
   );
 }

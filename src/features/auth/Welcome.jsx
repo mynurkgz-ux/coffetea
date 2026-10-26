@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth';
 import { Field, Modal } from '../../shared/ui/index.jsx';
 import { btnCls, inputCls } from '../../shared/ui/styles.js';
-import { genCode, normCode, uid } from '../../shared/lib/utils.js';
+import { genCode, genStaffCode, normCode, uid } from '../../shared/lib/utils.js';
 import { auth } from '../../shared/data/firebase.js';
+import { findVenueByCode, getUserProfile } from '../../shared/data/firestoreStore.js';
 
 const EMAIL_LINK_KEY='coffetea_email_link_email';
 const EMAIL_FLOW_KEY='coffetea_email_link_flow';
@@ -26,10 +27,14 @@ export function Welcome({db,toast,finish}){
       localStorage.removeItem(EMAIL_FLOW_KEY);
       window.history.replaceState({},document.title,window.location.pathname);
 
-      const existing=db.users.find(user=>user.contact===email);
-      if(existing){finish(existing);setA(null);return;}
+      const existing=await getUserProfile(credential.user.uid);
+      if(existing){await finish(existing);setA(null);return;}
 
       const savedFlow=flow?.email===email&&flow.expiresAt>Date.now()?flow:null;
+      if(savedFlow?.mode==='login'){
+        setA({mode:'register',role:null,contact:email,firebaseUid:credential.user.uid,step:'role',err:'Аккаунт Coffetea не найден. Выберите роль для регистрации.',loading:false});
+        return;
+      }
       setA({
         mode:'register',
         role:savedFlow?.role||null,
@@ -65,7 +70,7 @@ export function Welcome({db,toast,finish}){
     localStorage.setItem(EMAIL_FLOW_KEY,JSON.stringify(flow));
     try{
       await sendSignInLinkToEmail(auth,email,{
-        url:`${window.location.origin}/`,
+        url:`${window.location.origin}/login`,
         handleCodeInApp:true
       });
     }catch(error){
@@ -79,9 +84,6 @@ export function Welcome({db,toast,finish}){
     e.preventDefault();
     const raw=e.target.contact.value.trim().toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(raw)){setA(s=>({...s,err:'Введите почту вида name@mail.com'}));return;}
-    const existing=db.users.find(u=>u.contact===raw);
-    if(a.mode==='login'&&!existing){setA(s=>({...s,err:'Аккаунт не найден'}));return;}
-    if(a.mode==='register'&&existing){setA(s=>({...s,err:'Этот email уже зарегистрирован'}));return;}
     setA(s=>({...s,contact:raw,loading:true,err:''}));
     try{
       await sendEmailLink(raw,a.mode,a.role);
@@ -96,20 +98,25 @@ export function Welcome({db,toast,finish}){
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){setA(s=>({...s,err:'Введите почту, на которую пришла ссылка'}));return;}
     await completeEmailLink(email);
   }
-  function submitBusiness(e){
+  async function submitBusiness(e){
     e.preventDefault();
     const n=e.target.biz.value.trim();
     if(!n){setA(s=>({...s,err:'Введите название заведения'}));return;}
-    finish({id:a.firebaseUid||uid(),role:'owner',contact:a.contact,business:n.slice(0,60),joinCode:genCode(),staffCode:genCode(),qr:''});
-    setA(null);
+    try{
+      await finish({id:a.firebaseUid||uid(),role:'owner',contact:a.contact,business:n.slice(0,60),joinCode:genCode(),adminCode:genStaffCode(),staffCode:genStaffCode(),qr:''});
+      setA(null);
+    }catch(error){setA(s=>({...s,err:error.message||'Не удалось создать профиль.'}));}
   }
-  function submitLink(e){
+  async function submitLink(e){
     e.preventDefault();
     const code=normCode(e.target.link.value);
-    const owner=db.users.find(u=>u.role==='owner'&&(a.role==='buyer'?u.joinCode===code:u.staffCode===code));
-    if(!owner){setA(s=>({...s,err:'Код не найден. Уточните у владельца.'}));return;}
-    finish({id:a.firebaseUid||uid(),role:a.role,contact:a.contact,ownerId:owner.id});
-    setA(null);
+    setA(s=>({...s,loading:true,err:''}));
+    try{
+      const owner=await findVenueByCode(code,a.role);
+      if(!owner)throw new Error('Код не найден или уже использован. Уточните у владельца.');
+      await finish({id:a.firebaseUid||uid(),role:a.role,contact:a.contact,ownerId:owner.id,inviteCode:code});
+      setA(null);
+    }catch(error){setA(s=>({...s,loading:false,err:error.message||'Не удалось подключиться к заведению.'}));}
   }
   const demo=db.users.find(u=>u.id==='u_demo');
   return (

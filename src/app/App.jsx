@@ -1,29 +1,52 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { BuyerView } from '../pages/BuyerView.jsx';
 import { CashierView } from '../pages/CashierView.jsx';
 import { OwnerView } from '../pages/OwnerView.jsx';
+import { PublicHome } from '../pages/PublicHome.jsx';
 import { Welcome } from '../features/auth/Welcome.jsx';
-import { KEY, applyTheme } from '../shared/config.js';
-import { load } from '../shared/data/localStore.js';
+import { applyTheme } from '../shared/config.js';
+import { auth } from '../shared/data/firebase.js';
+import { createLinkedProfile, createOwnerProfile, emptyDatabase, getUserProfile, persistChanges, savePublicHomeTheme, subscribeAccount, subscribePublicHome } from '../shared/data/firestoreStore.js';
 import { rolePath } from '../shared/lib/utils.js';
 import { Bubbles, Toast } from '../shared/ui/index.jsx';
 
 export function App(){
   const navigate=useNavigate();
-  // db — вся база: пользователи, товары, заказы, корзины, кто сейчас
-  // вошёл (db.session). load() при первом запуске достаёт её из localStorage
-  // (или создаёт demo-данные, если там пусто).
-  const [db,setDb]=useState(load);
-  // При любом изменении db — пересохраняем её в localStorage целиком.
-  useEffect(()=>{try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}},[db]);
-  // update — единственный способ поменять базу для всех остальных
-  // компонентов. structuredClone делает полную копию db, функция fn
-  // меняет эту копию как ей удобно (например, d.products.push(...)),
-  // а setDb сохраняет копию как новое состояние — React это и замечает,
-  // и перерисовывает экран.
-  function update(fn){setDb(d=>{const n=structuredClone(d);fn(n);return n;});}
-  // Текущий вошедший пользователь (или null, если никто не вошёл).
+  const [db,setDb]=useState(emptyDatabase);
+  const dbRef=useRef(db);
+  const [authUser,setAuthUser]=useState(null);
+  const [authLoading,setAuthLoading]=useState(true);
+  const [dataLoading,setDataLoading]=useState(false);
+  const [accountVersion,setAccountVersion]=useState(0);
+  const [publicTheme,setPublicTheme]=useState('orange');
+  useEffect(()=>onAuthStateChanged(auth,user=>{
+    setAuthUser(user);
+    setAuthLoading(false);
+  }),[]);
+  useEffect(()=>{
+    if(!authUser){
+      dbRef.current=emptyDatabase();
+      setDb(dbRef.current);
+      setDataLoading(false);
+      return undefined;
+    }
+    setDataLoading(true);
+    return subscribeAccount(authUser,data=>{
+      dbRef.current=data;
+      setDb(data);
+      setDataLoading(false);
+    },error=>{
+      console.error('Failed to load Coffetea data from Firestore:',error);
+      toast(error.message||'Не удалось загрузить данные из облака.');
+      setDataLoading(false);
+    });
+  },[authUser,accountVersion]);
+  useEffect(()=>subscribePublicHome(setPublicTheme,error=>{
+    console.error('Failed to load public site theme from Firestore:',error);
+  }),[]);
+
   const me=db.users.find(u=>u.id===db.session)||null;
 
   // Всплывающее сообщение снизу экрана (Toast) и функция его показа:
@@ -31,13 +54,45 @@ export function App(){
   const [msg,setMsg]=useState('');
   const tref=useRef();
   function toast(m){setMsg(m);clearTimeout(tref.current);tref.current=setTimeout(()=>setMsg(''),2600);}
-  // Завершение регистрации/входа (вызывается из Welcome): добавляем
-  // нового пользователя в базу, если его там ещё нет, и делаем его
-  // текущим (d.session=user.id).
-  function finish(user){
-    update(d=>{if(!d.users.some(u=>u.id===user.id))d.users.push(user);d.session=user.id;});
-    toast(user.role==='owner'?'Заведение создано. Добавьте первый товар.':'Добро пожаловать!');
-    navigate(rolePath(user.role),{replace:true});
+  async function finish(user){
+    try{
+      const existing=await getUserProfile(user.id);
+      let profile=existing;
+      if(!existing){
+        if(user.role==='owner')await createOwnerProfile(user);
+        else await createLinkedProfile(user,user.inviteCode);
+        profile=await getUserProfile(user.id);
+      }
+      if(!profile)throw new Error('Профиль не появился в базе. Попробуйте ещё раз.');
+      setDataLoading(true);
+      setAccountVersion(version=>version+1);
+      toast(profile.role==='owner'&&!existing?'Заведение создано. Добавьте первый товар.':'Добро пожаловать!');
+      navigate(rolePath(profile.role),{replace:true});
+    }catch(error){
+      console.error('Failed to save Coffetea profile:',error);
+      toast(error.message||'Не удалось сохранить профиль в облаке.');
+      throw error;
+    }
+  }
+  function update(fn){
+    const previous=dbRef.current;
+    const next=structuredClone(previous);
+    fn(next);
+    dbRef.current=next;
+    setDb(next);
+    if(previous.session&&next.session===null){
+      void signOut(auth).catch(error=>{
+        console.error('Failed to sign out from Firebase:',error);
+        toast('Не удалось выйти из аккаунта.');
+      });
+      return;
+    }
+    if(previous.session&&next.session){
+      void persistChanges(previous,next,previous.session).catch(error=>{
+        console.error('Failed to save Coffetea data to Firestore:',error);
+        toast(error.message||'Не удалось сохранить изменения в облаке.');
+      });
+    }
   }
 
   // ---- Тема оформления ----
@@ -48,6 +103,15 @@ export function App(){
   // и запоминаем выбор, чтобы он сохранился при следующем открытии.
   useEffect(()=>{applyTheme(theme);try{localStorage.setItem('coffetea_theme',theme);}catch(e){}},[theme]);
   function setTheme(k){setThemeState(k);}
+  async function setPublicSiteTheme(key){
+    try{
+      await savePublicHomeTheme(key);
+      toast('Тема главной страницы обновлена');
+    }catch(error){
+      console.error('Failed to save public site theme:',error);
+      toast(error.message||'Не удалось сохранить тему сайта.');
+    }
+  }
 
   // ---- Обои и музыка текущего заведения ----
   // "Чьё" заведение сейчас на экране (sceneOwner), чтобы понять, чьи обои
@@ -83,13 +147,16 @@ export function App(){
   const musicCtl={active:!!(sceneOwner&&sceneOwner.music),playing,toggle:toggleMusic};
 
   const homePath=me?rolePath(me.role):'/';
-  const ownerView=<OwnerView db={db} update={update} me={me} toast={toast} theme={theme} setTheme={setTheme} musicCtl={musicCtl}/>;
+  const ownerView=<OwnerView db={db} update={update} me={me} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme} musicCtl={musicCtl}/>;
 
   // ---- Общий фон ----
   // Если у заведения есть свои обои — показываем картинку (с лёгким
   // затемнением поверх для читаемости текста). Если обоев нет —
   // показываем градиент текущей темы и поверх него анимированные пузыри.
   const hasWallpaper=!!(sceneOwner&&sceneOwner.wallpaper);
+  if(authLoading||dataLoading){
+    return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[var(--bgFrom)] to-[var(--bgTo)] text-white font-bold">Загружаем Coffetea…</div>;
+  }
   return (
     <div className={"min-h-screen "+(hasWallpaper?'':'bg-gradient-to-b from-[var(--bgFrom)] to-[var(--bgTo)]')}>
       {hasWallpaper&&<div className="fixed inset-0 z-0 bg-cover bg-center" style={{backgroundImage:`url(${sceneOwner.wallpaper})`}}><div className="absolute inset-0 bg-black/40"/></div>}
@@ -98,11 +165,12 @@ export function App(){
           у пузырей/обоев, но ниже z-30 у всплывающих окон. */}
       <div className="relative z-[1]">
         <Routes>
-          <Route path="/" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish}/>} />
+          <Route path="/" element={<PublicHome theme={publicTheme}/>}/>
+          <Route path="/login" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish}/>} />
           <Route path="/owner/*" element={me?.role==='owner'?ownerView:<Navigate to={homePath} replace/>} />
           <Route path="/admin/*" element={me?.role==='admin'?ownerView:<Navigate to={homePath} replace/>} />
-          <Route path="/cashier" element={me?.role==='cashier'?<CashierView db={db} update={update} me={me} theme={theme} setTheme={setTheme}/>:<Navigate to={homePath} replace/>} />
-          <Route path="/buyer" element={me?.role==='buyer'?<BuyerView db={db} update={update} me={me} theme={theme} setTheme={setTheme} musicCtl={musicCtl}/>:<Navigate to={homePath} replace/>} />
+          <Route path="/cashier" element={me?.role==='cashier'?<CashierView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>:<Navigate to={homePath} replace/>} />
+          <Route path="/buyer" element={me?.role==='buyer'?<BuyerView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme} musicCtl={musicCtl}/>:<Navigate to={homePath} replace/>} />
           <Route path="*" element={<Navigate to={homePath} replace/>} />
         </Routes>
       </div>
