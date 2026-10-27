@@ -265,10 +265,18 @@ export async function createCatalogOrder(cartItems,buyer){
 }
 
 export async function getUserProfile(userId){
-  const snapshot=await getDoc(doc(db,'profiles',userId));
-  if(snapshot.exists())return {id:snapshot.id,...snapshot.data()};
-  const adminSnapshot=await getDoc(doc(db,'admin',userId));
-  if(adminSnapshot.exists()&&adminSnapshot.data().role==='admin'){
+  const [snapshot,adminSnapshot]=await Promise.all([
+    getDoc(doc(db,'profiles',userId)),
+    getDoc(doc(db,'admin',userId))
+  ]);
+  const isGlobalAdmin=adminSnapshot.exists()&&adminSnapshot.data().role==='admin';
+  if(snapshot.exists()){
+    const profile={id:snapshot.id,...snapshot.data()};
+    return isGlobalAdmin
+      ?{...profile,role:'admin',isGlobalAdmin:true,siteAdmin:true}
+      :profile;
+  }
+  if(isGlobalAdmin){
     return {
       id:adminSnapshot.id,
       role:'admin',

@@ -140,7 +140,9 @@ export function App(){
       setAccountVersion(version=>version+1);
       toast(profile.role==='owner'&&!existing?'Заведение создано. Добавьте первый товар.':'Добро пожаловать!');
       const nextPath=new URLSearchParams(window.location.search).get('next');
-      navigate(profile.role==='buyer'&&['/catalog','/'].includes(nextPath)?nextPath:rolePath(profile.role),{replace:true});
+      navigate(profile.isGlobalAdmin||profile.siteAdmin
+        ?'/admin'
+        :profile.role==='buyer'&&['/catalog','/'].includes(nextPath)?nextPath:rolePath(profile.role),{replace:true});
     }catch(error){
       console.error('Failed to save Coffetea profile:',error);
       toast(error.message||'Не удалось сохранить профиль в облаке.');
@@ -232,7 +234,7 @@ export function App(){
   // в OwnerView/BuyerView (которые отдают его дальше в MusicBtn).
   const musicCtl={active:!!(sceneOwner&&sceneOwner.music),playing,toggle:toggleMusic};
 
-  const homePath=me?rolePath(me.role):'/';
+  const homePath=me?(isSiteAdmin?'/admin':rolePath(me.role)):'/';
   const ownerView=<OwnerView db={db} update={update} me={me} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance} publicAnimation={publicAnimation} musicCtl={musicCtl}/>;
 
   // ---- Общий фон ----
@@ -261,9 +263,9 @@ export function App(){
           <Route path="/login" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish} initialMode="login"/>} />
           <Route path="/register" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish} initialMode="register"/>} />
           <Route path="/owner/*" element={me?.role==='owner'?ownerView:<Navigate to={homePath} replace/>} />
-          <Route path="/admin/*" element={me?.role==='admin'?(me.isGlobalAdmin
+          <Route path="/admin/*" element={isSiteAdmin
             ?<GlobalAdminView me={me} update={update} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance} publicAnimation={publicAnimation} publicProducts={publicProducts} publicOrders={publicOrders} publicOrdersLoading={publicOrdersLoading} setPublicOrderStatus={setPublicOrderStatus} saveSiteProduct={saveSiteProduct} deleteSiteProduct={deleteSiteProduct} siteBanners={siteBanners} siteBannersLoadError={siteBannersLoadError} saveSiteBanner={saveSiteBanner} deleteSiteBanner={deleteSiteBanner} siteReviews={siteReviews} moderateSiteReview={moderateSiteReview}/>
-            :ownerView):me?.role==='cashier'?ownerView:<Navigate to={homePath} replace/>} />
+            :me?.role==='admin'||me?.role==='cashier'?ownerView:<Navigate to={homePath} replace/>} />
           <Route path="/cashier" element={me?.role==='cashier'?<CashierView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance}/>:<Navigate to={homePath} replace/>} />
           <Route path="/buyer" element={<Navigate to="/account" replace/>} />
           <Route path="*" element={<Navigate to={homePath} replace/>} />

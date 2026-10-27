@@ -30,7 +30,14 @@ export function Welcome({db,toast,finish,initialMode='register'}){
       ?'admin'
       :profile.username||usernameFromAuthEmail(user.email)||usernameForAccount(profile.role,user.uid);
     const authEmail=authEmailForLogin(username);
-    if(user.email?.toLowerCase()!==authEmail)await updateEmail(user,authEmail);
+    if(user.email?.toLowerCase()!==authEmail){
+      try{
+        await updateEmail(user,authEmail);
+      }catch(error){
+        console.error('Failed to update the Firebase sign-in email:',error);
+        toast('Вход выполнен, но не удалось включить вход по логину. Пока входите по Gmail.');
+      }
+    }
     if(!profile.isGlobalAdmin&&profile.username!==username){
       try{
         await saveProfileUsername(user.uid,username);

@@ -1,39 +1,351 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+    function profilePath(uid) {
+      return /databases/$(database)/documents/profiles/$(uid);
     }
 
-    match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update, delete: if signedIn() && (request.auth.uid == userId || isAdmin());
+    function venuePath(venueId) {
+      return /databases/$(database)/documents/venues/$(venueId);
     }
 
-    match /products/{productId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
+    function siteAdminPath(uid) {
+      return /databases/$(database)/documents/admin/$(uid);
     }
 
-    match /reviews/{reviewId} {
-      allow read: if true;
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    function isSiteAdmin() {
+      return signedIn()
+        && ((exists(profilePath(request.auth.uid))
+            && get(profilePath(request.auth.uid)).data.siteAdmin == true)
+          || (exists(siteAdminPath(request.auth.uid))
+            && get(siteAdminPath(request.auth.uid)).data.role == 'admin'));
     }
 
-    match /orders/{orderId} {
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
+    function hasProfile() {
+      return signedIn() && exists(profilePath(request.auth.uid));
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    function isOwner(venueId) {
+      return hasProfile()
+        && get(profilePath(request.auth.uid)).data.role == 'owner'
+        && get(profilePath(request.auth.uid)).data.ownerId == venueId;
+    }
+
+    function isOwnerAfter(venueId) {
+      return signedIn()
+        && getAfter(profilePath(request.auth.uid)).data.role == 'owner'
+        && getAfter(profilePath(request.auth.uid)).data.ownerId == venueId;
+    }
+
+    function isStaff(venueId) {
+      return hasProfile()
+        && get(profilePath(request.auth.uid)).data.ownerId == venueId
+        && get(profilePath(request.auth.uid)).data.role in ['admin', 'cashier'];
+    }
+
+    function canManage(venueId) {
+      return isOwner(venueId)
+        || (isStaff(venueId)
+          && get(profilePath(request.auth.uid)).data.role == 'admin');
+    }
+
+    function validOwnerProfile(uid) {
+      return request.resource.data.keys().hasOnly([
+          'role', 'ownerId', 'contact', 'adminCode', 'staffCode'
+        ])
+        && request.resource.data.role == 'owner'
+        && request.resource.data.ownerId == uid
+        && request.resource.data.contact is string
+        && request.resource.data.adminCode is string
+        && request.resource.data.staffCode is string;
+    }
+
+    function validBuyerProfile() {
+      let code = request.resource.data.joinCode;
+      let codePath = /databases/$(database)/documents/publicJoinCodes/$(code);
+      return request.resource.data.keys().hasOnly([
+          'role', 'ownerId', 'contact', 'joinCode', 'username'
+        ])
+        && request.resource.data.role == 'buyer'
+        && request.resource.data.contact is string
+        && (!('username' in request.resource.data)
+          || request.resource.data.username.matches('^userb[0-9]{4,}$'))
+        && exists(codePath)
+        && get(codePath).data.ownerId == request.resource.data.ownerId;
+    }
+
+    function validSiteBuyerProfile() {
+      return request.resource.data.keys().hasOnly([
+          'role', 'contact', 'fullName', 'username', 'createdAt'
+        ])
+        && request.resource.data.role == 'buyer'
+        && request.resource.data.contact is string
+        && request.resource.data.contact == request.auth.token.email
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() >= 2
+        && request.resource.data.fullName.size() <= 100
+        && (!('username' in request.resource.data)
+          || request.resource.data.username.matches('^userb[0-9]{4,}$'))
+        && request.resource.data.createdAt is number;
+    }
+
+    function validStaffProfile(uid) {
+      let code = request.resource.data.inviteCode;
+      let invitePath = /databases/$(database)/documents/staffInvites/$(code);
+      return request.resource.data.keys().hasOnly([
+          'role', 'ownerId', 'contact', 'inviteCode'
+        ])
+        && request.resource.data.role in ['admin', 'cashier']
+        && request.resource.data.contact is string
+        && existsAfter(invitePath)
+        && getAfter(invitePath).data.ownerId == request.resource.data.ownerId
+        && getAfter(invitePath).data.role == request.resource.data.role
+        && getAfter(invitePath).data.claimedBy == uid;
+    }
+
+    match /profiles/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && (validOwnerProfile(uid)
+          || validBuyerProfile()
+          || validSiteBuyerProfile()
+          || validStaffProfile(uid));
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && (
+          (resource.data.role == 'owner'
+            && request.resource.data.role == 'owner'
+            && request.resource.data.ownerId == uid
+            && request.resource.data.contact == resource.data.contact
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'adminCode', 'staffCode'
+            ])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminCode'])
+              || (getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.adminCode)).data.ownerId == uid
+                && getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.adminCode)).data.role == 'admin'
+                && getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.adminCode)).data.claimedBy == null))
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['staffCode'])
+              || (getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.staffCode)).data.ownerId == uid
+                && getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.staffCode)).data.role == 'cashier'
+                && getAfter(/databases/$(database)/documents/staffInvites/$(request.resource.data.staffCode)).data.claimedBy == null)))
+          || (resource.data.role in ['buyer', 'admin']
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username'])
+            && request.resource.data.username is string
+            && (resource.data.role == 'buyer'
+              ? request.resource.data.username.matches('^userb[0-9]{4,}$')
+              : request.resource.data.username.matches('^admin[0-9]{4,}$')))
+        );
+      allow delete: if false;
+    }
+
+    match /admin/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /venues/{venueId} {
+      allow get, list: if true;
+      allow create: if signedIn()
+        && request.auth.uid == venueId
+        && getAfter(profilePath(venueId)).data.role == 'owner'
+        && request.resource.data.keys().hasOnly([
+          'business', 'joinCode', 'qr'
+        ]);
+      allow update: if isOwner(venueId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'business', 'joinCode', 'qr', 'currency', 'wallpaper',
+            'music', 'musicName', 'theme'
+          ]);
+      allow delete: if false;
+
+      match /products/{productId} {
+        allow get, list: if true;
+        allow create, update: if canManage(venueId)
+          && request.resource.data.ownerId == venueId;
+        allow delete: if canManage(venueId)
+          && resource.data.ownerId == venueId;
+      }
+
+      match /orders/{orderId} {
+        allow get, list: if canManage(venueId)
+          || isSiteAdmin()
+          || (hasProfile()
+            && get(profilePath(request.auth.uid)).data.role == 'cashier'
+            && get(profilePath(request.auth.uid)).data.ownerId == venueId)
+          || (signedIn() && resource.data.buyerId == request.auth.uid);
+        allow create: if signedIn()
+          && hasProfile()
+          && get(profilePath(request.auth.uid)).data.role == 'buyer'
+          && request.resource.data.keys().hasOnly([
+            'code', 'ownerId', 'buyerId', 'buyerContact',
+            'items', 'total', 't', 'status'
+          ])
+          && request.resource.data.ownerId == venueId
+          && request.resource.data.buyerId == request.auth.uid
+          && request.resource.data.buyerContact is string
+          && request.resource.data.code is string
+          && request.resource.data.items is list
+          && request.resource.data.total is string
+          && request.resource.data.t is number
+          && request.resource.data.status == 'new';
+        allow update: if (canManage(venueId)
+            || isSiteAdmin()
+            || (hasProfile()
+              && get(profilePath(request.auth.uid)).data.role == 'cashier'
+              && get(profilePath(request.auth.uid)).data.ownerId == venueId))
+          && resource.data.ownerId == venueId
+          && request.resource.data.ownerId == venueId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in [
+            'new', 'preparing', 'ready', 'done', 'cancelled'
+          ];
+        allow delete: if false;
+      }
+
+      match /carts/{buyerId} {
+        allow read, write: if signedIn()
+          && request.auth.uid == buyerId
+          && hasProfile()
+          && get(profilePath(request.auth.uid)).data.role == 'buyer'
+          && get(profilePath(request.auth.uid)).data.ownerId == venueId;
+      }
+    }
+
+    match /publicJoinCodes/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.ownerId
+        && isOwnerAfter(request.auth.uid)
+        && getAfter(venuePath(request.auth.uid)).data.joinCode == code;
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.ownerId
+        && request.resource.data.ownerId == resource.data.ownerId
+        && isOwner(request.auth.uid)
+        && getAfter(venuePath(request.auth.uid)).data.joinCode == code;
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.ownerId
+        && isOwner(request.auth.uid)
+        && getAfter(venuePath(request.auth.uid)).data.joinCode != code;
+    }
+
+    match /staffInvites/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && isOwnerAfter(request.auth.uid)
+        && request.resource.data.claimedBy == null
+        && ((request.resource.data.role == 'admin'
+              && getAfter(profilePath(request.auth.uid)).data.adminCode == code)
+          || (request.resource.data.role == 'cashier'
+              && getAfter(profilePath(request.auth.uid)).data.staffCode == code));
+      allow update: if signedIn()
+          && resource.data.claimedBy == null
+          && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.claimedBy == request.auth.uid
+          && getAfter(profilePath(request.auth.uid)).data.inviteCode == code
+          && getAfter(profilePath(request.auth.uid)).data.role == resource.data.role
+          && request.resource.data.role == resource.data.role;
+      allow delete: if signedIn() && isOwner(resource.data.ownerId);
+    }
+
+    match /siteSettings/{settingId} {
+      allow get: if settingId == 'publicHome';
+      allow list: if false;
+      allow create, update: if settingId == 'publicHome'
+        && isSiteAdmin()
+        && request.resource.data.keys().hasOnly(['theme', 'animation'])
+        && request.resource.data.keys().hasAny(['theme', 'animation'])
+        && (!('theme' in request.resource.data)
+          || request.resource.data.theme in [
+              'orange', 'gray', 'mint', 'berry',
+              'ocean', 'violet', 'lemon', 'newyear'
+            ])
+        && (!('animation' in request.resource.data)
+          || request.resource.data.animation in [
+            'float', 'soda', 'pulse', 'stars', 'snow', 'none'
+          ]);
+      allow delete: if false;
+    }
+
+    match /siteProducts/{productId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSiteAdmin();
+    }
+
+    match /siteBanners/{bannerId} {
+      allow get, list: if isSiteAdmin() || resource.data.active == true;
+      allow create, update, delete: if isSiteAdmin();
+    }
+
+    match /siteReviews/{reviewId} {
+      allow get, list: if isSiteAdmin()
+        || resource.data.status == 'approved'
+        || (signedIn() && resource.data.buyerId == request.auth.uid);
+      allow create: if signedIn()
+        && hasProfile()
+        && get(profilePath(request.auth.uid)).data.role == 'buyer'
+        && request.resource.data.keys().hasOnly([
+          'authorName', 'text', 'rating', 'buyerId', 'status', 't'
+        ])
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() >= 2
+        && request.resource.data.authorName.size() <= 40
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 5
+        && request.resource.data.text.size() <= 500
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.buyerId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.t is number;
+      allow update: if isSiteAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['approved', 'rejected'];
+      allow delete: if isSiteAdmin();
+    }
+
+    match /siteOrders/{orderId} {
+      allow get, list: if isSiteAdmin()
+        || (signedIn() && resource.data.buyerId == request.auth.uid);
+      allow create: if signedIn()
+        && hasProfile()
+        && get(profilePath(request.auth.uid)).data.role == 'buyer'
+        && request.resource.data.keys().hasOnly([
+          'code', 'buyerId', 'buyerContact', 'items', 'total',
+          'paymentMethod', 'paymentStatus', 't', 'status'
+        ])
+        && request.resource.data.buyerId == request.auth.uid
+        && request.resource.data.buyerContact is string
+        && request.resource.data.code is string
+        && request.resource.data.items is list
+        && request.resource.data.total is string
+        && request.resource.data.paymentMethod == 'cash'
+        && request.resource.data.paymentStatus == 'pending'
+        && request.resource.data.t is number
+        && request.resource.data.status == 'new';
+      allow update: if isSiteAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'paymentStatus'])
+        && request.resource.data.status in [
+          'new', 'preparing', 'ready', 'done', 'cancelled'
+        ]
+        && request.resource.data.paymentStatus in ['pending', 'paid']
+        && (request.resource.data.status == 'done'
+          ? request.resource.data.paymentStatus == 'paid'
+          : request.resource.data.paymentStatus == 'pending');
+      allow delete: if false;
     }
   }
 }
