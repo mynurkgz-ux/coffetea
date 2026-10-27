@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Field, Modal } from '../../shared/ui/index.jsx';
 import { btnCls, btnGhost, inputCls } from '../../shared/ui/styles.js';
-import { CURR } from '../../shared/config.js';
+import { CURR, MENU_CATEGORIES } from '../../shared/config.js';
 import { finalPrice, money, shrink } from '../../shared/lib/utils.js';
 
 export function ProductCard({p,onClick}){
@@ -28,6 +28,10 @@ export function ProductCard({p,onClick}){
 export function ProductForm({product,onSave,onDelete,onClose}){
   const [img,setImg]=useState(product?product.img:'');
   const [armDel,setArmDel]=useState(false);
+  const productCategory=String(product?.category||'').trim();
+  const categoryOptions=productCategory&&!MENU_CATEGORIES.includes(productCategory)
+    ?[...MENU_CATEGORIES,productCategory]
+    :MENU_CATEGORIES;
   function onFile(e){
     const f=e.target.files[0]; if(!f) return;
     shrink(f,700).then(setImg).catch(()=>alert('Не удалось открыть файл'));
@@ -37,7 +41,7 @@ export function ProductForm({product,onSave,onDelete,onClose}){
     const f=e.target;
     const name=f.name.value.trim(); const price=parseFloat(f.price.value.replace(',','.'));
     if(!name||!(price>0)) return;
-    onSave({name,info:f.info.value.trim(),price,currency:f.currency.value,discount:Math.min(90,Math.max(0,parseInt(f.discount.value||'0',10)||0)),img});
+    onSave({name,info:f.info.value.trim(),category:f.category.value,price,currency:f.currency.value,discount:Math.min(90,Math.max(0,parseInt(f.discount.value||'0',10)||0)),img});
   }
   return (
     <Modal title={product?'Изменить товар':'Новый товар'} onClose={onClose}>
@@ -49,6 +53,7 @@ export function ProductForm({product,onSave,onDelete,onClose}){
         <label htmlFor="pimg" className={btnGhost+" inline-flex items-center justify-center cursor-pointer"}>{img?'Заменить фото':'Выбрать фото'}</label>
         <Field label="Название"><input name="name" defaultValue={product?product.name:''} className={inputCls}/></Field>
         <Field label="Кратко"><input name="info" defaultValue={product?product.info:''} className={inputCls}/></Field>
+        <Field label="Категория"><select name="category" defaultValue={productCategory||'Напитки'} className={inputCls}>{categoryOptions.map(category=><option key={category} value={category}>{category}</option>)}</select></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Цена"><input name="price" defaultValue={product?product.price:''} inputMode="decimal" className={inputCls}/></Field>
           <Field label="Валюта"><select name="currency" defaultValue={product?product.currency:'сом'} className={inputCls}>{CURR.map(c=><option key={c}>{c}</option>)}</select></Field>

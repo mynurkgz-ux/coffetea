@@ -1,16 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiShoppingCart } from 'react-icons/fi';
-import { THEMES } from '../shared/config.js';
+import { MENU_CATEGORIES, THEMES } from '../shared/config.js';
 import { createCatalogOrder } from '../shared/data/firestoreStore.js';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
 import { finalPrice, money, uniqueMenuProducts } from '../shared/lib/utils.js';
 import { Modal } from '../shared/ui/index.jsx';
-import { btnCls } from '../shared/ui/styles.js';
+import { btnCls, inputCls } from '../shared/ui/styles.js';
 import { PublicPageShell } from './PublicLayout.jsx';
 
 export function CatalogPage({ theme = 'orange', products = [], loading = false, me, buyerOrders = [] }) {
   const menuProducts = useMemo(() => uniqueMenuProducts(products), [products]);
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [discountedOnly, setDiscountedOnly] = useState(false);
   const [cart, setCart] = useState(() => {
     try {
       const savedCart = JSON.parse(sessionStorage.getItem('coffetea_catalog_cart') || '{}');
@@ -39,6 +42,21 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
     quantity,
     product: menuProducts.find(product => product.id === key)
   })).filter(item => item.product), [cart, menuProducts]);
+  const categories = useMemo(() => [...new Set([
+    ...MENU_CATEGORIES,
+    ...menuProducts.map(product => String(product.category || '').trim() || 'Без категории')
+  ])], [menuProducts]);
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase('ru');
+    return menuProducts.filter(product => {
+      const category = String(product.category || '').trim() || 'Без категории';
+      const matchesSearch = !query
+        || `${product.name || ''} ${product.info || ''} ${category}`.toLocaleLowerCase('ru').includes(query);
+      return matchesSearch
+        && (!selectedCategory || category === selectedCategory)
+        && (!discountedOnly || Number(product.discount) > 0);
+    });
+  }, [discountedOnly, menuProducts, search, selectedCategory]);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalsByCurrency = cartItems.reduce((totals, item) => {
     const currency = item.product.currency || 'сом';
@@ -106,8 +124,64 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
         {loading ? (
           <p className="py-12 text-center text-sm font-semibold text-[#67736a]">Загружаем товары…</p>
         ) : menuProducts.length ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {menuProducts.map(product => {
+          <>
+            <div className="mb-6 grid gap-3 rounded-3xl border border-[var(--border)] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)_auto] sm:items-center sm:p-5">
+              <input
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder="Поиск по названию или описанию"
+                aria-label="Поиск товаров"
+                className={inputCls}
+              />
+            </div>
+            <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Фильтр товаров по категории">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('')}
+                aria-pressed={!selectedCategory}
+                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${!selectedCategory?'border-[var(--accent)] bg-[var(--accent)] text-white':'border-[var(--border)] bg-white text-[#67736a] hover:border-[var(--accent)]'}`}
+              >
+                Все
+              </button>
+              {categories.map(category=>(
+                <button
+                  key={category}
+                  type="button"
+                  onClick={()=>setSelectedCategory(category)}
+                  aria-pressed={selectedCategory===category}
+                  className={`rounded-full border px-4 py-2 text-sm font-bold transition ${selectedCategory===category?'border-[var(--accent)] bg-[var(--accent)] text-white':'border-[var(--border)] bg-white text-[#67736a] hover:border-[var(--accent)]'}`}
+                >
+                  {category}
+                </button>
+              ))}
+              <label className="flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-bold">
+                <input
+                  type="checkbox"
+                  checked={discountedOnly}
+                  onChange={event => setDiscountedOnly(event.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Со скидкой
+              </label>
+            </div>
+            {filteredProducts.length ? (
+              <p className="mb-4 text-sm font-semibold text-[#67736a]">Найдено товаров: {filteredProducts.length}</p>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--field)] px-6 py-12 text-center">
+                <p className="text-lg font-extrabold">Товары не найдены</p>
+                <p className="mt-2 text-sm text-[#67736a]">Измените параметры фильтрации или сбросьте их.</p>
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setSelectedCategory(''); setDiscountedOnly(false); }}
+                  className="mt-4 rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-extrabold text-white"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            )}
+            {filteredProducts.length > 0 && <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {filteredProducts.map(product => {
               const quantity = cart[product.id] || 0;
               return (
                 <article key={product.id} className="group flex flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
@@ -134,7 +208,8 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                 </article>
               );
             })}
-          </div>
+            </div>}
+          </>
         ) : (
           <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--field)] px-6 py-12 text-center">
             <p className="text-lg font-extrabold">Товары пока не добавлены</p>
