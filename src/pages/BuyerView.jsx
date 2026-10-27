@@ -4,7 +4,7 @@ import { finalPrice, money, uid } from '../shared/lib/utils.js';
 import { btnCls } from '../shared/ui/styles.js';
 import { Modal } from '../shared/ui/index.jsx';
 
-export function BuyerView({db,update,me,theme,setTheme,publicTheme,setPublicSiteTheme,musicCtl}){
+export function BuyerView({db,update,me,theme,setTheme,publicTheme,savePublicSiteAppearance,musicCtl}){
   const owner=db.users.find(u=>u.id===me.ownerId);
   const list=db.products.filter(p=>p.ownerId===me.ownerId).sort((a,b)=>b.t-a.t);
   // Корзина этого покупателя: объект вида {идТовара: количество}.
@@ -112,7 +112,7 @@ export function BuyerView({db,update,me,theme,setTheme,publicTheme,setPublicSite
           </div>
         </Modal>
       )}
-      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>}
+      {modal==='settings'&&<SettingsModal isOwner={false} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={()=>{}} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance}/>}
       {modal&&modal.receipt&&(
         <Modal title="Спасибо за покупку!" onClose={()=>setModal(null)}>
           <div className="space-y-3 text-center">

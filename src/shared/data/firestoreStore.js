@@ -1,36 +1,282 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
   query,
   runTransaction,
   setDoc,
+  updateDoc,
   where,
   writeBatch
 } from 'firebase/firestore';
 import { THEMES } from '../config.js';
 import { db } from './firebase.js';
+import { finalPrice, usernameFromAuthEmail } from '../lib/utils.js';
 
 export function emptyDatabase(){
   return {session:null,users:[],products:[],orders:[],carts:{}};
 }
 
-export function subscribePublicHome(onTheme,onError){
+export function subscribePublicHome(onSettings,onError){
   return onSnapshot(doc(db,'siteSettings','publicHome'),snapshot=>{
-    const theme=snapshot.data()?.theme;
-    onTheme(THEMES.some(item=>item.key===theme)?theme:'orange');
+    const settings=snapshot.data()||{};
+    onSettings({
+      theme:THEMES.some(item=>item.key===settings.theme)?settings.theme:'orange',
+      animation:['float','soda','pulse','stars','snow','none'].includes(settings.animation)?settings.animation:'soda'
+    });
   },onError);
 }
 
-export async function savePublicHomeTheme(theme){
+export async function savePublicHomeAppearance(theme,animation){
   if(!THEMES.some(item=>item.key===theme))throw new Error('Выберите тему из списка.');
-  await setDoc(doc(db,'siteSettings','publicHome'),{theme},{merge:true});
+  if(!['float','soda','pulse','stars','snow','none'].includes(animation))throw new Error('Выберите анимацию из списка.');
+  await setDoc(doc(db,'siteSettings','publicHome'),{theme,animation},{merge:true});
+}
+
+export function subscribePublicProducts(onProducts,onError){
+  return onSnapshot(collection(db,'siteProducts'),snapshot=>{
+    const products=snapshot.docs.map(item=>({
+      id:item.id,
+      ...item.data(),
+      isSiteProduct:true
+    })).sort((a,b)=>(b.t||0)-(a.t||0));
+    onProducts(products);
+  },onError);
+}
+
+export async function saveSiteProduct(productId,product){
+  const productRef=productId
+    ?doc(db,'siteProducts',productId)
+    :doc(collection(db,'siteProducts'));
+  await setDoc(productRef,{
+    ...product,
+    isSiteProduct:true,
+    t:product.t||Date.now()
+  });
+}
+
+export async function deleteSiteProduct(productId){
+  await deleteDoc(doc(db,'siteProducts',productId));
+}
+
+export function subscribeSiteBanners(onBanners,onError,includeInactive=false){
+  const bannersRef=collection(db,'siteBanners');
+  const bannersQuery=includeInactive
+    ?bannersRef
+    :query(bannersRef,where('active','==',true));
+  return onSnapshot(bannersQuery,snapshot=>{
+    onBanners(snapshot.docs.map(item=>({id:item.id,...item.data()}))
+      .sort((a,b)=>(a.order||0)-(b.order||0)||(b.t||0)-(a.t||0)));
+  },onError);
+}
+
+export async function saveSiteBanner(bannerId,banner){
+  const title=String(banner.title||'').trim();
+  const text=String(banner.text||'').trim();
+  if(!title||!text||!banner.img)throw new Error('Добавьте заголовок, описание и изображение баннера.');
+  const ref=bannerId
+    ?doc(db,'siteBanners',bannerId)
+    :doc(collection(db,'siteBanners'));
+  await setDoc(ref,{
+    title,
+    text,
+    img:banner.img,
+    buttonText:String(banner.buttonText||'Открыть меню').trim(),
+    active:Boolean(banner.active),
+    order:Math.max(0,Number(banner.order)||0),
+    t:banner.t||Date.now()
+  });
+}
+
+export async function deleteSiteBanner(bannerId){
+  await deleteDoc(doc(db,'siteBanners',bannerId));
+}
+
+export function subscribeSiteReviews(onReviews,onError,includePending=false){
+  const reviewsRef=collection(db,'siteReviews');
+  const reviewsQuery=includePending
+    ?reviewsRef
+    :query(reviewsRef,where('status','==','approved'));
+  return onSnapshot(reviewsQuery,snapshot=>{
+    onReviews(snapshot.docs.map(item=>({id:item.id,...item.data()}))
+      .sort((a,b)=>(b.t||0)-(a.t||0)));
+  },onError);
+}
+
+export async function submitSiteReview(review,buyer){
+  if(!buyer?.id||buyer.role!=='buyer')throw new Error('Войдите как покупатель, чтобы оставить отзыв.');
+  const authorName=String(review.authorName||'').trim();
+  const text=String(review.text||'').trim();
+  if(authorName.length<2||authorName.length>40)throw new Error('Имя должно содержать от 2 до 40 символов.');
+  if(text.length<5||text.length>500)throw new Error('Отзыв должен содержать от 5 до 500 символов.');
+  if(!Number.isInteger(review.rating)||review.rating<1||review.rating>5)throw new Error('Выберите оценку от 1 до 5.');
+  const reviewRef=doc(collection(db,'siteReviews'));
+  await setDoc(reviewRef,{
+    authorName,
+    text,
+    rating:review.rating,
+    buyerId:buyer.id,
+    status:'pending',
+    t:Date.now()
+  });
+}
+
+export async function moderateSiteReview(reviewId,status){
+  if(!['approved','rejected'].includes(status))throw new Error('Недопустимый статус отзыва.');
+  await updateDoc(doc(db,'siteReviews',reviewId),{status});
+}
+
+export function subscribePublicOrders(onOrders,onError){
+  let venueOrders=[];
+  let siteOrders=[];
+  const emit=()=>onOrders([...venueOrders,...siteOrders].sort((a,b)=>(b.t||0)-(a.t||0)));
+  const stopVenueOrders=subscribeAllVenueItems('orders',orders=>{
+    venueOrders=orders;
+    emit();
+  },onError);
+  const stopSiteOrders=onSnapshot(collection(db,'siteOrders'),snapshot=>{
+    siteOrders=snapshot.docs.map(item=>({
+      id:item.id,
+      ...item.data(),
+      isSiteOrder:true
+    }));
+    emit();
+  },onError);
+  return ()=>{
+    stopVenueOrders();
+    stopSiteOrders();
+  };
+}
+
+export function subscribeBuyerSiteOrders(buyerId,onOrders,onError){
+  const ordersQuery=query(
+    collection(db,'siteOrders'),
+    where('buyerId','==',buyerId)
+  );
+  return onSnapshot(ordersQuery,snapshot=>{
+    onOrders(snapshot.docs.map(item=>({
+      id:item.id,
+      ...item.data(),
+      isSiteOrder:true
+    })).sort((a,b)=>(b.t||0)-(a.t||0)));
+  },onError);
+}
+
+function subscribeAllVenueItems(subcollection,onItems,onError){
+  const listeners=new Map();
+  const venueItems=new Map();
+  const venueNames=new Map();
+  let venueIds=new Set();
+  function emit(){
+    onItems(Array.from(venueItems.values()).flat().sort((a,b)=>(b.t||0)-(a.t||0)));
+  }
+  const stopVenues=onSnapshot(collection(db,'venues'),snapshot=>{
+    const nextIds=new Set(snapshot.docs.map(venue=>venue.id));
+    for(const [venueId,stop] of listeners){
+      if(!nextIds.has(venueId)){
+        stop();
+        listeners.delete(venueId);
+        venueItems.delete(venueId);
+        venueNames.delete(venueId);
+      }
+    }
+    venueIds=nextIds;
+    for(const venue of snapshot.docs){
+      const venueName=venue.data().business||'Заведение без названия';
+      venueNames.set(venue.id,venueName);
+      if(venueItems.has(venue.id)){
+        venueItems.set(venue.id,venueItems.get(venue.id).map(item=>({...item,venueName})));
+      }
+      if(listeners.has(venue.id))continue;
+      const stop=onSnapshot(collection(db,'venues',venue.id,subcollection),items=>{
+        if(!venueIds.has(venue.id))return;
+        venueItems.set(venue.id,items.docs.map(item=>({
+          id:item.id,
+          ...item.data(),
+          venueId:venue.id,
+          venueName:venueNames.get(venue.id)
+        })));
+        emit();
+      },onError);
+      listeners.set(venue.id,stop);
+    }
+    emit();
+  },onError);
+  return ()=>{
+    stopVenues();
+    listeners.forEach(stop=>stop());
+    listeners.clear();
+    venueItems.clear();
+    venueNames.clear();
+  };
+}
+
+export async function updatePublicOrderStatus(venueId,orderId,status){
+  if(!['new','preparing','ready','done','cancelled'].includes(status)){
+    throw new Error('Недопустимый статус заказа.');
+  }
+  await updateDoc(
+    venueId
+      ?doc(db,'venues',venueId,'orders',orderId)
+      :doc(db,'siteOrders',orderId),
+    venueId
+      ?{status}
+      :{status,paymentStatus:status==='done'?'paid':'pending'}
+  );
+}
+
+export async function createCatalogOrder(cartItems,buyer){
+  if(!buyer?.id||!buyer?.contact)throw new Error('Войдите как покупатель, чтобы оформить заказ.');
+  if(!cartItems.length)throw new Error('Корзина пуста.');
+  for(const {product,quantity} of cartItems){
+    if(!product?.id||!Number.isInteger(quantity)||quantity<1||quantity>99){
+      throw new Error('В корзине есть некорректный товар или количество.');
+    }
+  }
+
+  const orderRef=doc(collection(db,'siteOrders'));
+  const items=cartItems.map(({product,quantity})=>({
+    name:product.name,
+    qty:quantity,
+    price:finalPrice(product),
+    currency:product.currency||'сом'
+  }));
+  const totalsByCurrency=items.reduce((totals,item)=>{
+    totals[item.currency]=(totals[item.currency]||0)+item.price*item.qty;
+    return totals;
+  },{});
+  const order={
+    code:orderRef.id.slice(-4).toUpperCase(),
+    buyerId:buyer.id,
+    buyerContact:buyer.contact,
+    items,
+    total:Object.entries(totalsByCurrency)
+      .map(([currency,total])=>`${total.toLocaleString('ru-RU',{maximumFractionDigits:2})}\u00a0${currency}`)
+      .join(' · '),
+    paymentMethod:'cash',
+    paymentStatus:'pending',
+    t:Date.now(),
+    status:'new'
+  };
+  await setDoc(orderRef,order);
+  return {...order,id:orderRef.id,isSiteOrder:true};
 }
 
 export async function getUserProfile(userId){
   const snapshot=await getDoc(doc(db,'profiles',userId));
-  return snapshot.exists()?{id:snapshot.id,...snapshot.data()}:null;
+  if(snapshot.exists())return {id:snapshot.id,...snapshot.data()};
+  const adminSnapshot=await getDoc(doc(db,'admin',userId));
+  if(adminSnapshot.exists()&&adminSnapshot.data().role==='admin'){
+    return {
+      id:adminSnapshot.id,
+      role:'admin',
+      isGlobalAdmin:true,
+      siteAdmin:true
+    };
+  }
+  return null;
 }
 
 export async function findVenueByCode(code,role){
@@ -101,6 +347,30 @@ export async function createLinkedProfile(user,code){
   });
 }
 
+export async function createBuyerProfile(user){
+  const profileRef=doc(db,'profiles',user.id);
+  const fullName=String(user.fullName||'').trim();
+  const contact=String(user.contact||'').trim().toLowerCase();
+  const createdAt=Date.now();
+  const username=String(user.username||'').trim();
+  if(fullName.length<2||fullName.length>100)throw new Error('ФИО должно содержать от 2 до 100 символов.');
+  if(!contact)throw new Error('Укажите адрес электронной почты.');
+  if(username&&!/^userb[0-9]{4,}$/.test(username))throw new Error('Недопустимый логин CoffeTea.');
+  await setDoc(profileRef,{
+    role:'buyer',
+    contact,
+    fullName,
+    ...(username?{username}:{}),
+    createdAt
+  });
+  return {id:user.id,role:'buyer',contact,fullName,...(username?{username}:{}),createdAt};
+}
+
+export async function saveProfileUsername(userId,username){
+  if(!/^(userb[0-9]{4,}|admin[0-9]{4,})$/.test(username))throw new Error('Недопустимый логин CoffeTea.');
+  await updateDoc(doc(db,'profiles',userId),{username});
+}
+
 export function subscribeAccount(user,onData,onError){
   let profile;
   let venue;
@@ -122,7 +392,22 @@ export function subscribeAccount(user,onData,onError){
     if(profile.role==='owner'){
       Object.assign(owner,profile);
     }
-    const users=profile.role==='owner'?[owner]:[owner,{id:user.uid,...profile}];
+    const users=profile.role==='owner'
+      ?[owner]
+      :[owner,{
+        id:user.uid,
+        ...profile,
+        ...(profile.role==='buyer'?{
+          fullName:profile.fullName||user.displayName||'',
+          ...(profile.username||usernameFromAuthEmail(user.email)
+            ?{username:profile.username||usernameFromAuthEmail(user.email)}
+            :{})
+        }:profile.role==='admin'?{
+          ...(profile.username||usernameFromAuthEmail(user.email)
+            ?{username:profile.username||usernameFromAuthEmail(user.email)}
+            :{})
+        }:{})
+      }];
     onData({
       session:user.uid,
       users,
@@ -138,6 +423,30 @@ export function subscribeAccount(user,onData,onError){
       if(closed)return;
       if(!profile){
         onData(emptyDatabase());
+        return;
+      }
+      if(profile.isGlobalAdmin){
+        const username=user.email?.toLowerCase()==='admin@users.coffetea.app'?'admin':'';
+        onData({...emptyDatabase(),session:user.uid,users:[{
+          ...profile,
+          ...(username?{username}:{}),
+          contact:user.email||''
+        }]});
+        return;
+      }
+      if(profile.role==='buyer'&&!profile.ownerId){
+        onData({
+          ...emptyDatabase(),
+          session:user.uid,
+          users:[{
+            id:user.uid,
+            ...profile,
+            fullName:profile.fullName||user.displayName||'',
+            ...(profile.username||usernameFromAuthEmail(user.email)
+              ?{username:profile.username||usernameFromAuthEmail(user.email)}
+              :{})
+          }]
+        });
         return;
       }
       const ownerId=profile.role==='owner'?user.uid:profile.ownerId;

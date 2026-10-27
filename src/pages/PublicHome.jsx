@@ -1,15 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { THEMES } from '../shared/config.js';
+import { finalPrice, money, uniqueMenuProducts } from '../shared/lib/utils.js';
+import { ProductCarousel } from '../features/products/ProductCarousel.jsx';
+import { SiteBannerCarousel } from '../features/site/SiteBannerCarousel.jsx';
+import { PublicParticles } from '../features/site/PublicParticles.jsx';
+import { SiteReviews } from '../features/site/SiteReviews.jsx';
+import { PublicFooter, PublicHeader } from './PublicLayout.jsx';
 
-const benefits=[
-  {icon:'☕',title:'Любимые вкусы',text:'Кофе, чай и напитки, к которым хочется возвращаться.'},
-  {icon:'🥐',title:'Что-нибудь к чаю',text:'Подберите к напитку свежую выпечку или десерт.'},
-  {icon:'♡',title:'Уютная пауза',text:'Загляните на минутку или останьтесь подольше.'}
-];
-
-export function PublicHome({theme='orange'}){
+export function PublicHome({theme='orange',animation='soda',products=[],menuLoading=false,banners=[],reviews=[],me,onSubmitReview}){
   const [intro,setIntro]=useState('visible');
+  const [featuredIndex,setFeaturedIndex]=useState(0);
+  const [reducePromotionMotion,setReducePromotionMotion]=useState(
+    ()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+  const discountedProducts=useMemo(
+    ()=>uniqueMenuProducts(products).filter(product=>Number(product.discount)>0),
+    [products]
+  );
   const palette=THEMES.find(item=>item.key===theme)||THEMES[0];
   useEffect(()=>{
     const leaveTimer=window.setTimeout(()=>setIntro('leaving'),2200);
@@ -19,6 +27,20 @@ export function PublicHome({theme='orange'}){
       window.clearTimeout(finishTimer);
     };
   },[]);
+  useEffect(()=>{
+    const mediaQuery=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPreference=event=>setReducePromotionMotion(event.matches);
+    mediaQuery.addEventListener('change',updateMotionPreference);
+    return ()=>mediaQuery.removeEventListener('change',updateMotionPreference);
+  },[]);
+  useEffect(()=>{
+    setFeaturedIndex(0);
+    if(discountedProducts.length<2||reducePromotionMotion)return undefined;
+    const timer=window.setInterval(()=>{
+      setFeaturedIndex(index=>(index+1)%discountedProducts.length);
+    },2000);
+    return ()=>window.clearInterval(timer);
+  },[discountedProducts,reducePromotionMotion]);
   const themeStyle={
     '--accent':palette.accent,
     '--field':palette.field,
@@ -31,7 +53,7 @@ export function PublicHome({theme='orange'}){
   };
   return (
     <main style={themeStyle} className="min-h-screen overflow-hidden bg-white text-[#30251f]">
-      {intro!=='hidden'&&<div className={`welcome-splash ${intro==='leaving'?'welcome-splash-leaving':''}`} role="status" aria-label="Добро пожаловать в Coffetea">
+      {intro!=='hidden'&&<div className={`welcome-splash ${intro==='leaving'?'welcome-splash-leaving':''}`} role="status" aria-label="CoffeTea — кофе и чай">
         <div className="welcome-bubbles" aria-hidden="true">
           <span className="welcome-bubble welcome-bubble-1"/>
           <span className="welcome-bubble welcome-bubble-2"/>
@@ -44,82 +66,106 @@ export function PublicHome({theme='orange'}){
         </div>
         <div className="welcome-splash-content">
           <span className="welcome-splash-logo">C</span>
-          <p className="welcome-splash-brand">Coffetea</p>
-          <h1>Добро пожаловать</h1>
-          <p className="welcome-splash-caption">Кофе · чай · хорошее настроение</p>
+          <p className="welcome-splash-brand">ТВОЯ КОФЕЙНЯ</p>
+          <h1>CoffeTea</h1>
+          <p className="welcome-splash-caption">Кофе · чай · моменты уюта</p>
         </div>
         <button type="button" className="welcome-splash-skip" onClick={()=>setIntro('hidden')}>Пропустить</button>
       </div>}
-      <header className="relative z-10 mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-3 bg-white px-5 py-5 sm:px-8">
-        <a href="#home" className="flex items-center gap-2.5 font-black tracking-tight">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--accent)] text-lg text-white shadow-md shadow-[var(--accent)]/20">C</span>
-          <span className="text-xl">Coffetea</span>
-        </a>
-        <nav className="hidden items-center gap-8 text-sm font-semibold text-[#76665d] md:flex">
-          <a className="transition hover:text-[var(--accent)]" href="#about">О нас</a>
-          <a className="transition hover:text-[var(--accent)]" href="#menu">Меню</a>
-          <a className="transition hover:text-[var(--accent)]" href="#visit">Как нас найти</a>
-        </nav>
-        <Link to="/login" className="rounded-full border border-[var(--border)] px-4 py-2.5 text-sm font-bold transition hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white">
-          Для сотрудников
-        </Link>
-        <nav aria-label="Основная навигация" className="flex w-full justify-between border-t border-[var(--border)] pt-3 text-xs font-bold text-[#76665d] md:hidden">
-          <a className="transition hover:text-[var(--accent)]" href="#about">О нас</a>
-          <a className="transition hover:text-[var(--accent)]" href="#menu">Меню</a>
-          <a className="transition hover:text-[var(--accent)]" href="#visit">Как нас найти</a>
-        </nav>
-      </header>
+      <PublicHeader me={me}/>
+      <SiteBannerCarousel banners={banners}/>
 
-      <section id="home" className="relative isolate overflow-hidden bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] text-white">
+      <section id="home" className={`relative isolate overflow-hidden bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] text-white hero-animation-${animation}`}>
+        <div className="hero-bubbles" aria-hidden="true">
+          <span className="hero-bubble hero-bubble-1"/>
+          <span className="hero-bubble hero-bubble-2"/>
+          <span className="hero-bubble hero-bubble-3"/>
+          <span className="hero-bubble hero-bubble-4"/>
+          <span className="hero-bubble hero-bubble-5"/>
+          <span className="hero-bubble hero-bubble-6"/>
+          <span className="hero-bubble hero-bubble-7"/>
+          <span className="hero-bubble hero-bubble-8"/>
+        </div>
         <div aria-hidden="true" className="pointer-events-none absolute -left-20 top-16 h-72 w-72 rounded-full bg-white/10 blur-2xl"/>
         <div aria-hidden="true" className="pointer-events-none absolute right-[8%] top-8 h-36 w-36 rounded-full border-[22px] border-white/10"/>
         <div aria-hidden="true" className="pointer-events-none absolute bottom-[-5rem] right-[36%] h-52 w-52 rounded-full bg-white/10"/>
-        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-20 md:grid-cols-[1.05fr_.95fr] md:py-24">
-          <div className="relative z-[1]">
+        <div className={`relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 sm:px-8 sm:py-20 md:py-24 ${discountedProducts.length?'md:grid-cols-[minmax(0,1fr)_minmax(18rem,.8fr)]':''}`}>
+          <div className="relative z-[1] max-w-3xl">
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[.16em] text-white">
-              <span className="h-2 w-2 rounded-full bg-white"/> Кофе · чай · хорошее настроение
+              <span className="h-2 w-2 rounded-full bg-white"/> КОФЕ · ЧАЙ · ДЕСЕРТЫ
             </p>
             <h1 className="max-w-2xl text-5xl font-black leading-[1.04] tracking-[-.045em] sm:text-6xl lg:text-7xl">
-              Маленькая пауза.<br/><span className="text-orange-50">Большое удовольствие.</span>
+              CoffeTea<br/><span className="text-orange-50">твой момент уюта.</span>
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-white/90 sm:text-lg">
-              Загляните за любимым кофе, согревающим чаем и чем-нибудь вкусным к ним. В Coffetea всегда найдётся повод выдохнуть и насладиться моментом.
+              Любимый кофе, согревающий чай и что-нибудь вкусное. Сделай паузу и наслаждайся моментом.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a href="#menu" className="rounded-full bg-white px-6 py-3.5 text-sm font-extrabold text-[var(--soft)] shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-50">
-                Что у нас есть <span aria-hidden="true">↓</span>
+                Открыть меню <span aria-hidden="true">↓</span>
               </a>
               <a href="#visit" className="rounded-full border border-white/50 px-6 py-3.5 text-sm font-extrabold text-white transition hover:bg-white/15">
                 Как нас найти
               </a>
             </div>
-            <p className="mt-8 text-xs font-semibold text-white/80">Будем рады видеть вас в Coffetea</p>
+            <p className="mt-8 text-xs font-semibold text-white/80">Налей себе немного хорошего настроения ☕</p>
           </div>
-
-          <div className="relative mx-auto w-full max-w-[520px]">
-            <div className="absolute -right-4 -top-4 h-28 w-28 rounded-full bg-white/20 blur-xl"/>
-            <div className="absolute -bottom-5 -left-5 h-32 w-32 rounded-full bg-orange-950/10 blur-xl"/>
-            <div className="relative aspect-[4/3.4] overflow-hidden rounded-[2.5rem] border border-white/40 bg-orange-100 shadow-2xl shadow-orange-950/20">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_55%_35%,#fffaf1_0%,#f9e0bf_52%,#eab77e_100%)]"/>
-              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-orange-950/35 to-transparent"/>
-              <div className="absolute left-[22%] top-[13%] h-[59%] w-[56%] rounded-[48%] bg-white shadow-[inset_-18px_-22px_30px_rgba(85,55,32,.12),0_25px_40px_rgba(61,43,27,.18)]"/>
-              <div className="absolute left-[29%] top-[20%] h-[44%] w-[42%] rounded-[50%] bg-[#713f27] shadow-[inset_0_8px_14px_rgba(255,230,184,.35)]">
-                <div className="absolute left-[27%] top-[28%] h-[42%] w-[42%] rounded-full border-[7px] border-[#e8c99c] opacity-90"/>
-                <div className="absolute left-[43%] top-[17%] h-[62%] w-[13%] rotate-45 rounded-full bg-[#f3dfbd]"/>
-              </div>
-              <div className="absolute left-[15%] top-[30%] h-[25%] w-[21%] rounded-full border-[14px] border-white shadow-[8px_8px_15px_rgba(61,43,27,.15)]"/>
-              <div className="absolute bottom-6 left-7 right-7 text-[#493124]">
-                <p className="text-xs font-bold uppercase tracking-[.2em] text-[#805c46]">Ваше место для паузы</p>
-                <p className="mt-2 text-2xl font-black">Сделано с теплом</p>
-              </div>
-              <div className="absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-full bg-white text-2xl shadow-lg">☕</div>
-            </div>
-          </div>
+          {discountedProducts.length>0&&(()=>{
+            const product=discountedProducts[featuredIndex%discountedProducts.length];
+            return (
+              <Link
+                key={`${product.venueId||'site'}-${product.id}`}
+                to="/catalog"
+                aria-label={`Товар со скидкой: ${product.name}, скидка ${product.discount} процентов. Открыть каталог.`}
+                className={`featured-product-card group relative z-[1] mx-auto block w-full max-w-sm ${discountedProducts.length>1&&!reducePromotionMotion?'featured-product-card-cycling':''}`}
+              >
+                <div aria-hidden="true" className="featured-product-glow"/>
+                <div className="relative overflow-hidden rounded-[2rem] border border-white/35 bg-white/15 p-3 shadow-2xl shadow-black/20 backdrop-blur-md transition duration-500 group-hover:-translate-y-1 group-hover:bg-white/20">
+                  <div className="featured-product-image relative h-64 overflow-hidden rounded-[1.5rem] bg-white/10">
+                    {product.img
+                      ?<img src={product.img} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105"/>
+                      :<div className="grid h-full place-items-center text-7xl font-black text-white/70" aria-hidden="true">{(product.name||'?')[0].toUpperCase()}</div>}
+                    <span className="featured-product-discount absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-black text-[var(--accent)] shadow-lg">
+                      Скидка −{product.discount}%
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between gap-3 px-2 pb-2 pt-4">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-white/70">Предложение дня</p>
+                      <h2 className="mt-1 truncate text-xl font-black text-white">{product.name}</h2>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-lg font-black text-white">{money(finalPrice(product),product.currency)}</p>
+                      <s className="text-xs font-semibold text-white/65">{money(product.price,product.currency)}</s>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-center text-xs font-bold tracking-wide text-white/75">Нажмите, чтобы открыть меню</p>
+              </Link>
+            );
+          })()}
         </div>
       </section>
 
-      <section id="about" className="bg-white px-5 py-16 sm:px-8 md:py-20">
-        <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[.8fr_1.2fr] md:items-end">
+      <section id="menu" className="relative isolate overflow-hidden">
+        <PublicParticles animation={animation}/>
+        <div className="relative z-[1] mx-auto max-w-7xl px-5 py-16 sm:px-8 md:py-20">
+        <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">Меню кафе</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Что вам сегодня по вкусу?</h2>
+          </div>
+          <Link to="/catalog" className="rounded-full border border-[var(--border)] px-5 py-3 text-sm font-extrabold transition hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white">
+            Весь каталог
+          </Link>
+        </div>
+        <ProductCarousel products={uniqueMenuProducts(products)} loading={menuLoading} limit={8}/>
+        </div>
+      </section>
+
+      <section id="about" className="relative isolate overflow-hidden bg-white px-5 py-16 sm:px-8 md:py-20">
+        <PublicParticles animation={animation}/>
+        <div className="relative z-[1] mx-auto grid max-w-7xl gap-8 md:grid-cols-[.8fr_1.2fr] md:items-end">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">О Coffetea</p>
             <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Место, где день становится чуточку лучше</h2>
@@ -130,27 +176,11 @@ export function PublicHome({theme='orange'}){
         </div>
       </section>
 
-      <section id="menu" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 md:py-20">
-        <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">Для любого настроения</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Что вам сегодня по вкусу?</h2>
-          </div>
-          <p className="max-w-sm text-sm leading-6 text-[#67736a]">Актуальное меню и цены можно открыть по QR-коду в заведении.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {benefits.map(item=>(
-            <article key={item.title} className="rounded-3xl border border-[var(--border)] bg-[var(--field)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--field)] text-2xl" aria-hidden="true">{item.icon}</span>
-              <h3 className="mt-5 text-lg font-extrabold">{item.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-[#67736a]">{item.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <SiteReviews reviews={reviews} me={me} onSubmit={onSubmitReview} animation={animation}/>
 
-      <section id="visit" className="bg-white px-5 pb-16 sm:px-8 md:pb-20">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 rounded-[2rem] bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] px-7 py-9 text-white shadow-xl shadow-[var(--accent)]/15 sm:px-10 md:flex-row md:items-center md:justify-between md:py-12">
+      <section id="visit" className="relative isolate overflow-hidden bg-white px-5 pb-16 sm:px-8 md:pb-20">
+        <PublicParticles animation={animation}/>
+        <div className="relative z-[1] mx-auto flex max-w-7xl flex-col gap-6 rounded-[2rem] bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] px-7 py-9 text-white shadow-xl shadow-[var(--accent)]/15 sm:px-10 md:flex-row md:items-center md:justify-between md:py-12">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white/75">До встречи</p>
             <h2 className="mt-3 text-3xl font-black tracking-tight">Загляните в Coffetea</h2>
@@ -162,12 +192,7 @@ export function PublicHome({theme='orange'}){
         </div>
       </section>
 
-      <footer className="border-t border-[var(--border)] bg-white px-5 py-6 sm:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs font-semibold text-[#7e897f] sm:flex-row">
-          <span>© {new Date().getFullYear()} Coffetea</span>
-          <span>Кофе, чай и тёплые встречи</span>
-        </div>
-      </footer>
+      <PublicFooter/>
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Field, Modal } from '../../shared/ui/index.jsx';
 import { btnCls, btnGhost, inputCls } from '../../shared/ui/styles.js';
 import { THEMES } from '../../shared/config.js';
@@ -14,6 +14,75 @@ export function ThemeModal({theme,setTheme,onClose,title='Изменить те�
             {t.name}
           </button>
         ))}
+      </div>
+    </Modal>
+  );
+}
+
+const PUBLIC_ANIMATIONS=[
+  {key:'float',name:'Плавающий',description:'Пузыри мягко перемещаются по экрану.'},
+  {key:'soda',name:'Газировка',description:'Пузыри поднимаются вверх, как в газировке.'},
+  {key:'pulse',name:'Пульс',description:'Пузыри плавно увеличиваются и уменьшаются.'},
+  {key:'stars',name:'Звёздный хлопок',description:'Пузыри лопаются и вспыхивают маленькими звёздами.'},
+  {key:'snow',name:'Снегопад',description:'Мягкие снежинки медленно падают сверху.'},
+  {key:'none',name:'Без анимации',description:'На главной странице нет движущихся частиц.'}
+];
+
+export function PublicHomeSettingsModal({theme,animation='soda',onSave,onClose}){
+  const [selectedTheme,setSelectedTheme]=useState(theme);
+  const [selectedAnimation,setSelectedAnimation]=useState(animation);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+
+  async function save(){
+    setSaving(true);
+    setError('');
+    try{
+      const saved=await onSave(selectedTheme,selectedAnimation);
+      if(saved)onClose();
+      else setError('Не удалось сохранить настройки. Проверьте доступ к Firestore и попробуйте снова.');
+    }catch(cause){
+      setError(cause.message||'Не удалось сохранить настройки. Попробуйте снова.');
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title="Настройки главной страницы" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-[var(--soft)]">Каталог главной страницы включает товары всех кафе.</p>
+        <div>
+          <p className="mb-2 text-sm font-bold">Цветовая тема главной</p>
+          <div className="grid grid-cols-3 gap-3">
+            {THEMES.map(item=>(
+              <button key={item.key} type="button" onClick={()=>setSelectedTheme(item.key)} aria-pressed={selectedTheme===item.key} className={"rounded-2xl border-2 p-2 text-xs font-bold "+(selectedTheme===item.key?'border-black':'border-[var(--border)]')}>
+                <span className="mb-2 block h-10 rounded-xl" style={{background:`linear-gradient(135deg, ${item.bgFrom}, ${item.bgTo})`}}/>
+                {item.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-bold">Фоновая анимация главной</p>
+          <div className="space-y-2">
+            {PUBLIC_ANIMATIONS.map(item=>(
+              <button key={item.key} type="button" onClick={()=>setSelectedAnimation(item.key)} aria-pressed={selectedAnimation===item.key} className={`flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition ${selectedAnimation===item.key?'border-[var(--accent)] bg-[var(--field)]':'border-[var(--border)] hover:bg-[var(--field)]'}`}>
+                <span className={`animation-preview animation-preview-${item.key}`} aria-hidden="true">
+                  {item.key==='stars'?'✦':item.key==='snow'?'❄':<><i/><i/><i/></>}
+                </span>
+                <span>
+                  <span className="block text-sm font-bold">{item.name}</span>
+                  <span className="mt-0.5 block text-xs text-[var(--soft)]">{item.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold leading-5 text-red-700">{error}</p>}
+        <button type="button" onClick={save} disabled={saving} className={btnCls+" mt-2 disabled:cursor-wait disabled:opacity-60"}>
+          {saving?'Сохраняем…':'Выбрать'}
+        </button>
       </div>
     </Modal>
   );
@@ -76,7 +145,7 @@ export function MusicModal({owner,update,onClose,toast}){
 //  - "Изменить тему" — видят все, тема общая на устройство
 // sub хранит, какое под-окно сейчас открыто ('theme'/'wallpaper'/'music'),
 // null — открыто только само окно настроек.
-export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,theme,setTheme,publicTheme,setPublicSiteTheme}){
+export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,theme,setTheme,publicTheme,savePublicSiteAppearance,publicAnimation='soda'}){
   const [sub,setSub]=useState(null);
   function saveBiz(e){
     e.preventDefault();
@@ -119,8 +188,8 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
           {me.siteAdmin&&<button onClick={()=>setSub('publicTheme')} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 border-[var(--border)] text-left">
             <span className="w-8 h-8 rounded-full shrink-0" style={{background:`linear-gradient(135deg, var(--bgFrom), var(--bgTo))`}}/>
             <span className="flex-1">
-              <b className="block text-sm">Тема главной сайта</b>
-              <span className="text-xs text-[var(--soft)]">Видна всем посетителям</span>
+              <b className="block text-sm">Главная сайта</b>
+              <span className="text-xs text-[var(--soft)]">Цвет и анимация главной страницы</span>
             </span>
           </button>}
         </div>
@@ -134,7 +203,7 @@ export function SettingsModal({isOwner,owner,me,update,onClose,onLogout,toast,th
           <button onClick={onLogout} className={btnGhost}>Выйти</button>
         </div>
         {sub==='theme'&&<ThemeModal theme={theme} setTheme={setTheme} onClose={()=>setSub(null)}/>}
-        {sub==='publicTheme'&&me.siteAdmin&&<ThemeModal title="Тема главной сайта" theme={publicTheme} setTheme={setPublicSiteTheme} onClose={()=>setSub(null)}/>}
+        {sub==='publicTheme'&&me.siteAdmin&&<PublicHomeSettingsModal theme={publicTheme} animation={publicAnimation} onSave={savePublicSiteAppearance} onClose={()=>setSub(null)}/>}
         {sub==='wallpaper'&&isOwner&&<WallpaperModal owner={owner} update={update} onClose={()=>setSub(null)} toast={toast}/>}
         {sub==='music'&&isOwner&&<MusicModal owner={owner} update={update} onClose={()=>setSub(null)} toast={toast}/>}
       </div>

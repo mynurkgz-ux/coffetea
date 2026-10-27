@@ -1,19 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { BuyerView } from '../pages/BuyerView.jsx';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CashierView } from '../pages/CashierView.jsx';
 import { OwnerView } from '../pages/OwnerView.jsx';
+import { GlobalAdminView } from '../pages/GlobalAdminView.jsx';
+import { CatalogPage } from '../pages/CatalogPage.jsx';
+import { BuyerAccountPage } from '../pages/BuyerAccountPage.jsx';
+import { AboutPage } from '../pages/AboutPage.jsx';
+import { ContactsPage } from '../pages/ContactsPage.jsx';
 import { PublicHome } from '../pages/PublicHome.jsx';
 import { Welcome } from '../features/auth/Welcome.jsx';
 import { applyTheme } from '../shared/config.js';
 import { auth } from '../shared/data/firebase.js';
-import { createLinkedProfile, createOwnerProfile, emptyDatabase, getUserProfile, persistChanges, savePublicHomeTheme, subscribeAccount, subscribePublicHome } from '../shared/data/firestoreStore.js';
+import { createLinkedProfile, createOwnerProfile, deleteSiteBanner, deleteSiteProduct, emptyDatabase, getUserProfile, moderateSiteReview, persistChanges, savePublicHomeAppearance, saveSiteBanner, saveSiteProduct, submitSiteReview, subscribeAccount, subscribeBuyerSiteOrders, subscribePublicHome, subscribePublicOrders, subscribePublicProducts, subscribeSiteBanners, subscribeSiteReviews, updatePublicOrderStatus } from '../shared/data/firestoreStore.js';
 import { rolePath } from '../shared/lib/utils.js';
 import { Bubbles, Toast } from '../shared/ui/index.jsx';
 
 export function App(){
   const navigate=useNavigate();
+  const location=useLocation();
   const [db,setDb]=useState(emptyDatabase);
   const dbRef=useRef(db);
   const [authUser,setAuthUser]=useState(null);
@@ -21,6 +26,17 @@ export function App(){
   const [dataLoading,setDataLoading]=useState(false);
   const [accountVersion,setAccountVersion]=useState(0);
   const [publicTheme,setPublicTheme]=useState('orange');
+  const [publicAnimation,setPublicAnimation]=useState('soda');
+  const [publicProducts,setPublicProducts]=useState([]);
+  const [publicProductsLoading,setPublicProductsLoading]=useState(true);
+  const [publicOrders,setPublicOrders]=useState([]);
+  const [publicOrdersLoading,setPublicOrdersLoading]=useState(true);
+  const [buyerSiteOrders,setBuyerSiteOrders]=useState([]);
+  const [siteBanners,setSiteBanners]=useState([]);
+  const [siteBannersLoadError,setSiteBannersLoadError]=useState('');
+  const [siteReviews,setSiteReviews]=useState([]);
+  const me=db.users.find(u=>u.id===db.session)||null;
+  const isSiteAdmin=Boolean(me?.isGlobalAdmin||me?.siteAdmin);
   useEffect(()=>onAuthStateChanged(auth,user=>{
     setAuthUser(user);
     setAuthLoading(false);
@@ -43,11 +59,67 @@ export function App(){
       setDataLoading(false);
     });
   },[authUser,accountVersion]);
-  useEffect(()=>subscribePublicHome(setPublicTheme,error=>{
-    console.error('Failed to load public site theme from Firestore:',error);
+  useEffect(()=>subscribePublicHome(settings=>{
+    setPublicTheme(settings.theme);
+    setPublicAnimation(settings.animation);
+  },error=>{
+    console.error('Failed to load public site settings from Firestore:',error);
   }),[]);
-
-  const me=db.users.find(u=>u.id===db.session)||null;
+  useEffect(()=>{
+    return subscribePublicProducts(products=>{
+      setPublicProducts(products);
+      setPublicProductsLoading(false);
+    },error=>{
+      console.error('Failed to load public products:',error);
+      toast(error.message||'Не удалось загрузить товары.');
+      setPublicProductsLoading(false);
+    });
+  },[]);
+  useEffect(()=>{
+    return subscribeSiteBanners(banners=>{
+      setSiteBanners(banners);
+      setSiteBannersLoadError('');
+    },error=>{
+      console.error('Failed to load site banners:',error);
+      setSiteBannersLoadError(error.message||'Не удалось загрузить баннеры.');
+      toast(error.message||'Не удалось загрузить баннеры.');
+    },isSiteAdmin);
+  },[isSiteAdmin]);
+  useEffect(()=>{
+    return subscribeSiteReviews(setSiteReviews,error=>{
+      console.error('Failed to load site reviews:',error);
+      toast(error.message||'Не удалось загрузить отзывы.');
+    },isSiteAdmin);
+  },[isSiteAdmin]);
+  useEffect(()=>{
+    if(me?.role!=='buyer'){
+      setBuyerSiteOrders([]);
+      return undefined;
+    }
+    return subscribeBuyerSiteOrders(me.id,orders=>{
+      setBuyerSiteOrders(orders);
+    },error=>{
+      console.error('Failed to load buyer catalog orders:',error);
+      toast(error.message||'Не удалось загрузить историю заказов.');
+    });
+  },[me?.id,me?.role]);
+  useEffect(()=>{
+    if(!me?.isGlobalAdmin&&!me?.siteAdmin){
+      setPublicOrders([]);
+      setPublicOrdersLoading(false);
+      return undefined;
+    }
+    setPublicOrders([]);
+    setPublicOrdersLoading(true);
+    return subscribePublicOrders(orders=>{
+      setPublicOrders(orders);
+      setPublicOrdersLoading(false);
+    },error=>{
+      console.error('Failed to load site admin orders:',error);
+      toast(error.message||'Не удалось загрузить заказы.');
+      setPublicOrdersLoading(false);
+    });
+  },[me?.isGlobalAdmin,me?.siteAdmin]);
 
   // Всплывающее сообщение снизу экрана (Toast) и функция его показа:
   // выставляем текст и через 2.6 секунды сами его убираем.
@@ -67,7 +139,8 @@ export function App(){
       setDataLoading(true);
       setAccountVersion(version=>version+1);
       toast(profile.role==='owner'&&!existing?'Заведение создано. Добавьте первый товар.':'Добро пожаловать!');
-      navigate(rolePath(profile.role),{replace:true});
+      const nextPath=new URLSearchParams(window.location.search).get('next');
+      navigate(profile.role==='buyer'&&['/catalog','/'].includes(nextPath)?nextPath:rolePath(profile.role),{replace:true});
     }catch(error){
       console.error('Failed to save Coffetea profile:',error);
       toast(error.message||'Не удалось сохранить профиль в облаке.');
@@ -103,13 +176,26 @@ export function App(){
   // и запоминаем выбор, чтобы он сохранился при следующем открытии.
   useEffect(()=>{applyTheme(theme);try{localStorage.setItem('coffetea_theme',theme);}catch(e){}},[theme]);
   function setTheme(k){setThemeState(k);}
-  async function setPublicSiteTheme(key){
+  async function savePublicSiteAppearance(theme,animation){
     try{
-      await savePublicHomeTheme(key);
-      toast('Тема главной страницы обновлена');
+      await savePublicHomeAppearance(theme,animation);
+      toast('Настройки главной страницы сохранены');
+      return true;
     }catch(error){
-      console.error('Failed to save public site theme:',error);
-      toast(error.message||'Не удалось сохранить тему сайта.');
+      console.error('Failed to save public site appearance:',error);
+      const message=error.code==='permission-denied'
+        ?'Firebase отклонил изменение. Опубликуйте актуальные правила Firestore и попробуйте ещё раз.'
+        :error.message||'Не удалось сохранить настройки главной страницы.';
+      toast(message);
+      throw new Error(message);
+    }
+  }
+  async function setPublicOrderStatus(venueId,orderId,status){
+    try{
+      await updatePublicOrderStatus(venueId,orderId,status);
+    }catch(error){
+      console.error('Failed to update public venue order:',error);
+      toast(error.message||'Не удалось обновить заказ.');
     }
   }
 
@@ -147,14 +233,14 @@ export function App(){
   const musicCtl={active:!!(sceneOwner&&sceneOwner.music),playing,toggle:toggleMusic};
 
   const homePath=me?rolePath(me.role):'/';
-  const ownerView=<OwnerView db={db} update={update} me={me} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme} musicCtl={musicCtl}/>;
+  const ownerView=<OwnerView db={db} update={update} me={me} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance} publicAnimation={publicAnimation} musicCtl={musicCtl}/>;
 
   // ---- Общий фон ----
   // Если у заведения есть свои обои — показываем картинку (с лёгким
   // затемнением поверх для читаемости текста). Если обоев нет —
   // показываем градиент текущей темы и поверх него анимированные пузыри.
   const hasWallpaper=!!(sceneOwner&&sceneOwner.wallpaper);
-  if(authLoading||dataLoading){
+  if(authLoading||(dataLoading&&!['/login','/register'].includes(location.pathname))){
     return <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[var(--bgFrom)] to-[var(--bgTo)] text-white font-bold">Загружаем Coffetea…</div>;
   }
   return (
@@ -165,12 +251,21 @@ export function App(){
           у пузырей/обоев, но ниже z-30 у всплывающих окон. */}
       <div className="relative z-[1]">
         <Routes>
-          <Route path="/" element={<PublicHome theme={publicTheme}/>}/>
-          <Route path="/login" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish}/>} />
+          <Route path="/" element={<PublicHome theme={publicTheme} animation={publicAnimation} products={publicProducts} menuLoading={publicProductsLoading} banners={siteBanners.filter(banner=>banner.active)} reviews={siteReviews.filter(review=>review.status==='approved')} me={me} onSubmitReview={review=>submitSiteReview(review,me)}/>}/>
+          <Route path="/catalog" element={<CatalogPage theme={publicTheme} products={publicProducts} loading={publicProductsLoading} me={me} buyerOrders={buyerSiteOrders}/>}/>
+          <Route path="/about" element={<AboutPage theme={publicTheme} me={me}/>}/>
+          <Route path="/contacts" element={<ContactsPage theme={publicTheme} me={me}/>}/>
+          <Route path="/account" element={me?.role==='buyer'
+            ?<BuyerAccountPage theme={publicTheme} me={me} orders={[...buyerSiteOrders,...db.orders]} onLogout={()=>update(data=>{data.session=null;})}/>
+            :<Navigate to={me?homePath:'/login?next=%2Faccount'} replace/>}/>
+          <Route path="/login" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish} initialMode="login"/>} />
+          <Route path="/register" element={me?<Navigate to={homePath} replace/>:<Welcome db={db} toast={toast} finish={finish} initialMode="register"/>} />
           <Route path="/owner/*" element={me?.role==='owner'?ownerView:<Navigate to={homePath} replace/>} />
-          <Route path="/admin/*" element={me?.role==='admin'?ownerView:<Navigate to={homePath} replace/>} />
-          <Route path="/cashier" element={me?.role==='cashier'?<CashierView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>:<Navigate to={homePath} replace/>} />
-          <Route path="/buyer" element={me?.role==='buyer'?<BuyerView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme} musicCtl={musicCtl}/>:<Navigate to={homePath} replace/>} />
+          <Route path="/admin/*" element={me?.role==='admin'?(me.isGlobalAdmin
+            ?<GlobalAdminView me={me} update={update} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance} publicAnimation={publicAnimation} publicProducts={publicProducts} publicOrders={publicOrders} publicOrdersLoading={publicOrdersLoading} setPublicOrderStatus={setPublicOrderStatus} saveSiteProduct={saveSiteProduct} deleteSiteProduct={deleteSiteProduct} siteBanners={siteBanners} siteBannersLoadError={siteBannersLoadError} saveSiteBanner={saveSiteBanner} deleteSiteBanner={deleteSiteBanner} siteReviews={siteReviews} moderateSiteReview={moderateSiteReview}/>
+            :ownerView):me?.role==='cashier'?ownerView:<Navigate to={homePath} replace/>} />
+          <Route path="/cashier" element={me?.role==='cashier'?<CashierView db={db} update={update} me={me} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance}/>:<Navigate to={homePath} replace/>} />
+          <Route path="/buyer" element={<Navigate to="/account" replace/>} />
           <Route path="*" element={<Navigate to={homePath} replace/>} />
         </Routes>
       </div>

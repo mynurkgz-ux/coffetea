@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, useLocation } from 'react-router-dom';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
 import { ProductCard, ProductForm } from '../features/products/components.jsx';
 import { MusicBtn, QrModal, SettingsModal } from '../features/settings/components.jsx';
 import { uid } from '../shared/lib/utils.js';
 import { btnCls, btnGhost, inputCls } from '../shared/ui/styles.js';
 
-export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPublicSiteTheme,musicCtl}){
+export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,savePublicSiteAppearance,publicAnimation,musicCtl}){
   // isOwner===true только у роли 'owner'. У администратора (role==='admin')
   // isOwner===false, и дальше по коду это используется, чтобы спрятать
   // кнопку QR и разделы кодов/обоев/музыки в настройках — у администратора
   // их просто нет.
   const isOwner=me.role==='owner';
+  const isCashier=me.role==='cashier';
   // У владельца id заведения — это его собственный id (me.id).
   // У администратора своего заведения нет: он привязан к чужому через
   // me.ownerId (это id владельца, который был сохранён при входе по коду).
@@ -31,10 +32,12 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
   // Товары и заказы именно ЭТОГО заведения (ownerId), остальных не видно.
   const list=db.products.filter(p=>p.ownerId===ownerId).sort((a,b)=>b.t-a.t);
   const orders=db.orders.filter(o=>o.ownerId===ownerId).sort((a,b)=>b.t-a.t);
-  const pendingOrders=orders.filter(o=>o.status!=='done');
+  const pendingOrders=orders.filter(o=>!['done','cancelled'].includes(o.status));
   const filteredProducts=list.filter(p=>p.name.toLowerCase().includes(productSearch.trim().toLowerCase()));
   const filteredOrders=orders.filter(o=>{
-    const matchesFilter=orderFilter==='all'||(orderFilter==='new'?o.status!=='done':o.status==='done');
+    const matchesFilter=orderFilter==='all'
+      ||(orderFilter==='active'&&!['done','cancelled'].includes(o.status))
+      ||o.status===orderFilter;
     const query=orderSearch.trim().toLowerCase();
     return matchesFilter&&(!query||String(o.code).toLowerCase().includes(query)||String(o.buyerContact||'').toLowerCase().includes(query));
   });
@@ -72,6 +75,8 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
   // Товар, который сейчас редактируют (если modal — это объект вида {edit:id}).
   const editing=modal&&modal.edit?list.find(p=>p.id===modal.edit):null;
 
+  if(isCashier&&section!=='orders')return <Navigate to="/admin/orders" replace/>;
+
   return (
     <div className="pb-10">
       {/* ===== ШАПКА (header) ===== 
@@ -85,7 +90,10 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
             truncate — если название длинное, обрежется многоточием,
             а не сломает шапку на две строки. */}
         <h1 className="flex-1 font-extrabold text-lg truncate">{owner?owner.business:''}</h1>
-        <span className="hidden sm:inline text-xs font-bold bg-white/20 px-3 py-2 rounded-full">{isOwner?'Владелец':'Администратор'}</span>
+        <span className="hidden sm:inline text-xs font-bold bg-white/20 px-3 py-2 rounded-full">
+          {isOwner?'Владелец':isCashier?'Кассир':'Администратор'}
+          {!isOwner&&!isCashier&&me?.username?` · ${me.username}`:''}
+        </span>
 
         {/* Кнопка-нота: появляется, только если у заведения есть музыка
             (сама проверка — внутри MusicBtn). musicCtl пришёл из App. */}
@@ -102,11 +110,13 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
       </header>
       <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6">
         <nav aria-label="Разделы панели управления" className="flex lg:flex-col gap-2 overflow-x-auto pb-4 lg:pb-0 lg:sticky lg:top-20 lg:self-start">
-          {[
+          {(isCashier?[
+            {path:basePath+'/orders',label:'Заказы',icon:'▤',count:pendingOrders.length}
+          ]:[
             {path:basePath,label:'Обзор',icon:'⌂',end:true},
             {path:basePath+'/products',label:'Товары',icon:'▦'},
             {path:basePath+'/orders',label:'Заказы',icon:'▤',count:pendingOrders.length}
-          ].map(item=>(
+          ]).map(item=>(
             <NavLink key={item.path} to={item.path} end={item.end} className={({isActive})=>'flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 font-bold transition '+(isActive?'bg-white text-[var(--accent)] shadow':'bg-white/20 text-white hover:bg-white/30')}>
               <span aria-hidden="true" className="text-lg">{item.icon}</span>
               <span>{item.label}</span>
@@ -180,7 +190,7 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
               <div className="text-white"><p className="text-sm text-white/80">Продажи заведения</p><h2 className="text-2xl font-extrabold">Заказы <span className="text-lg text-white/70">({orders.length})</span></h2></div>
               <input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} className={inputCls+' bg-white'} placeholder="Поиск по коду или email покупателя" aria-label="Поиск заказов"/>
               <div className="flex gap-2">
-                {[['all','Все'],['new','Новые'],['done','Оплаченные']].map(([key,label])=><button key={key} onClick={()=>setOrderFilter(key)} className={'rounded-full px-4 py-2 text-sm font-bold '+(orderFilter===key?'bg-white text-[var(--accent)]':'bg-white/20 text-white')}>{label}</button>)}
+                {[['all','Все'],['active','Активные'],['new','Новые'],['preparing','Готовятся'],['ready','Готовы'],['done','Выданы'],['cancelled','Отменены']].map(([key,label])=><button key={key} onClick={()=>setOrderFilter(key)} className={'rounded-full px-4 py-2 text-sm font-bold '+(orderFilter===key?'bg-white text-[var(--accent)]':'bg-white/20 text-white')}>{label}</button>)}
               </div>
               <div className="space-y-3">
                 {filteredOrders.length?filteredOrders.map(order=><OrderCard key={order.id} o={order} onToggle={setOrderStatus}/>):<div className="rounded-2xl bg-white/95 py-14 text-center text-[var(--soft)]">Заказы не найдены</div>}
@@ -194,7 +204,7 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,setPubl
           условие которого сейчас истинно (остальные — ничего, null). */}
       {modal==='add'&&<ProductForm onSave={d=>saveProduct(d,null)} onClose={()=>setModal(null)}/>}
       {editing&&<ProductForm product={editing} onSave={d=>saveProduct(d,modal.edit)} onDelete={()=>delProduct(modal.edit)} onClose={()=>setModal(null)}/>}
-      {modal==='settings'&&<SettingsModal isOwner={isOwner} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} setPublicSiteTheme={setPublicSiteTheme}/>}
+      {modal==='settings'&&<SettingsModal isOwner={isOwner} owner={owner} me={me} update={update} onClose={()=>setModal(null)} onLogout={logout} toast={toast} theme={theme} setTheme={setTheme} publicTheme={publicTheme} savePublicSiteAppearance={savePublicSiteAppearance} publicAnimation={publicAnimation}/>}
       {modal==='qr'&&isOwner&&<QrModal owner={owner} update={update} onClose={()=>setModal(null)} toast={toast}/>}
     </div>
   );

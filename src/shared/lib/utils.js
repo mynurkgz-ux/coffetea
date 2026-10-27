@@ -12,14 +12,53 @@ export function genStaffCode(){
 export function rolePath(role){
   if(role==='owner') return '/owner';
   if(role==='admin') return '/admin';
-  if(role==='cashier') return '/cashier';
-  if(role==='buyer') return '/buyer';
+  if(role==='cashier') return '/admin/orders';
+  if(role==='buyer') return '/account';
   return '/';
+}
+export function usernameForAccount(role,userId,isGlobalAdmin=false){
+  if(isGlobalAdmin)return 'admin';
+  if(!['admin','buyer'].includes(role))return '';
+  let hash=14695981039346656037n;
+  for(const character of String(userId||'')){
+    hash^=BigInt(character.charCodeAt(0));
+    hash=BigInt.asUintN(64,hash*1099511628211n);
+  }
+  const suffix=hash.toString(10);
+  return `${role==='buyer'?'userb':'admin'}${suffix}`;
+}
+export function authEmailForLogin(login){
+  const value=String(login||'').trim().toLowerCase();
+  if(value.includes('@'))return value;
+  if(!/^(admin|userb[0-9]{4,}|admin[0-9]{4,})$/.test(value)){
+    throw new Error('Введите Gmail или логин CoffeTea.');
+  }
+  return `${value}@users.coffetea.app`;
+}
+export function usernameFromAuthEmail(email){
+  const match=String(email||'').toLowerCase().match(/^((?:admin|userb[0-9]{4,}|admin[0-9]{4,}))@users\.coffetea\.app$/);
+  return match?.[1]||'';
 }
 // Красиво отформатировать цену: 1234.5 -> "1 234,5 сом".
 export function money(n,c){return Number(n).toLocaleString('ru-RU',{maximumFractionDigits:2})+'\u00A0'+c;}
 // Цена товара с учётом скидки, округлённая до копеек.
 export function finalPrice(p){return Math.round(p.price*(100-(p.discount||0)))/100;}
+export function uniqueMenuProducts(products){
+  const seen=new Set();
+  return products.filter(product=>{
+    const key=JSON.stringify([
+      String(product.name||'').trim().toLocaleLowerCase(),
+      String(product.info||'').trim(),
+      Number(product.price),
+      Number(product.discount||0),
+      product.currency||'сом',
+      product.img||''
+    ]);
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
 // Привести код заведения к единому виду перед сравнением:
 // убрать пробелы и перевести в верхний регистр ("k7f3 qz" -> "K7F3QZ").
 export function normCode(v){return String(v||'').replace(/\s+/g,'').toUpperCase();}
