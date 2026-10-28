@@ -125,7 +125,7 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
           <p className="py-12 text-center text-sm font-semibold text-[#67736a]">Загружаем товары…</p>
         ) : menuProducts.length ? (
           <>
-            <div className="mb-6 grid gap-3 rounded-3xl border border-[var(--border)] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)_auto] sm:items-center sm:p-5">
+            <div className="mb-6 grid gap-3 rounded-3xl border border-[var(--border)] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
               <input
                 type="search"
                 value={search}
@@ -134,6 +134,10 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                 aria-label="Поиск товаров"
                 className={inputCls}
               />
+              <a href="/#reviews" className={`${btnCls} flex items-center justify-center gap-2 whitespace-nowrap`}>
+                <span aria-hidden="true">★</span>
+                Оставить отзыв
+              </a>
             </div>
             <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Фильтр товаров по категории">
               <button
