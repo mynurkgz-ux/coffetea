@@ -4,8 +4,10 @@ import { Autoplay } from 'swiper/modules';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import { finalPrice, money } from '../../shared/lib/utils.js';
+import { useLanguage } from '../../shared/ui/index.jsx';
 
 export function ProductCarousel({ products = [], loading = false, limit }) {
+  const {t}=useLanguage();
   const swiperRef = useRef(null);
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -26,12 +28,12 @@ export function ProductCarousel({ products = [], loading = false, limit }) {
     else swiper.autoplay.start();
   }, [reducedMotion, visibleProducts.length]);
 
-  if (loading) return <p className="py-12 text-center text-sm font-semibold text-[#67736a]">Загружаем меню…</p>;
+  if (loading) return <p className="py-12 text-center text-sm font-semibold text-[#67736a]">{t('menuLoading')}</p>;
   if (!visibleProducts.length) {
     return (
       <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--field)] px-6 py-12 text-center">
-        <p className="text-lg font-extrabold">Скоро здесь появится меню</p>
-        <p className="mt-2 text-sm text-[#67736a]">Загляните позже за кофе, чаем и десертами.</p>
+        <p className="text-lg font-extrabold">{t('menuSoon')}</p>
+        <p className="mt-2 text-sm text-[#67736a]">{t('menuSoonText')}</p>
       </div>
     );
   }
@@ -52,7 +54,7 @@ export function ProductCarousel({ products = [], loading = false, limit }) {
         <button
           type="button"
           onClick={() => swiperRef.current?.slidePrev()}
-          aria-label="Предыдущие товары"
+          aria-label={t('previousProducts')}
           className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] transition hover:bg-[var(--accent)] hover:text-white"
         >
           <FiChevronLeft aria-hidden="true" size={20} />
@@ -60,7 +62,7 @@ export function ProductCarousel({ products = [], loading = false, limit }) {
         <button
           type="button"
           onClick={() => swiperRef.current?.slideNext()}
-          aria-label="Следующие товары"
+          aria-label={t('nextProducts')}
           className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] transition hover:bg-[var(--accent)] hover:text-white"
         >
           <FiChevronRight aria-hidden="true" size={20} />
@@ -77,7 +79,7 @@ export function ProductCarousel({ products = [], loading = false, limit }) {
           ? { delay: 0, disableOnInteraction: false, pauseOnMouseEnter: true }
           : false}
         role="region"
-        aria-label="Карусель товаров"
+        aria-label={t('productCarousel')}
         className="product-carousel-swiper !px-1 !pb-5"
       >
         {visibleProducts.map(product => (

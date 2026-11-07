@@ -55,7 +55,7 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
   };
   return (
     <main style={themeStyle} className="min-h-screen overflow-hidden bg-white text-[#30251f]">
-      {intro!=='hidden'&&<div className={`welcome-splash ${intro==='leaving'?'welcome-splash-leaving':''}`} role="status" aria-label="CoffeTea — кофе и чай">
+      {intro!=='hidden'&&<div className={`welcome-splash ${intro==='leaving'?'welcome-splash-leaving':''}`} role="status" aria-label={t('tagline')}>
         <div className="welcome-bubbles" aria-hidden="true">
           <span className="welcome-bubble welcome-bubble-1"/>
           <span className="welcome-bubble welcome-bubble-2"/>
@@ -118,7 +118,7 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
               <Link
                 key={`${product.venueId||'site'}-${product.id}`}
                 to="/catalog"
-                aria-label={`Товар со скидкой: ${product.name}, скидка ${product.discount} процентов. Открыть каталог.`}
+                aria-label={`${t('discountProductAria')}: ${product.name}, ${product.discount} ${t('percentOff')}. ${t('openCatalog')}.`}
                 className={`featured-product-card group relative z-[1] mx-auto block w-full max-w-sm ${discountedProducts.length>1&&!reducePromotionMotion?'featured-product-card-cycling':''}`}
               >
                 <div aria-hidden="true" className="featured-product-glow"/>
@@ -128,12 +128,12 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
                       ?<img src={product.img} alt="" className="h-full w-full object-cover transition duration-700 group-hover:scale-105"/>
                       :<div className="grid h-full place-items-center text-7xl font-black text-white/70" aria-hidden="true">{(product.name||'?')[0].toUpperCase()}</div>}
                     <span className="featured-product-discount absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-black text-[var(--accent)] shadow-lg">
-                      Скидка −{product.discount}%
+                      {t('discountOffer')} −{product.discount}%
                     </span>
                   </div>
                   <div className="flex items-end justify-between gap-3 px-2 pb-2 pt-4">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-white/70">Предложение дня</p>
+                      <p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-white/70">{t('offerDay')}</p>
                       <h2 className="mt-1 truncate text-xl font-black text-white">{product.name}</h2>
                     </div>
                     <div className="shrink-0 text-right">
@@ -142,7 +142,7 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
                     </div>
                   </div>
                 </div>
-                <p className="mt-3 text-center text-xs font-bold tracking-wide text-white/75">Нажмите, чтобы открыть меню</p>
+                <p className="mt-3 text-center text-xs font-bold tracking-wide text-white/75">{t('clickMenu')}</p>
               </Link>
             );
           })()}
@@ -184,12 +184,12 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
         <PublicParticles animation={animation}/>
         <div className="relative z-[1] mx-auto flex max-w-7xl flex-col gap-6 rounded-[2rem] bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] px-7 py-9 text-white shadow-xl shadow-[var(--accent)]/15 sm:px-10 md:flex-row md:items-center md:justify-between md:py-12">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white/75">До встречи</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight">Загляните в Coffetea</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">Найдите нас по QR-коду или спросите у сотрудников — они подскажут, как открыть меню.</p>
+            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white/75">{t('meet')}</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight">{t('discover')}</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-white/75">{t('qrText')}</p>
           </div>
           <a href="#home" className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-6 py-3.5 text-sm font-extrabold text-[#25352d] transition hover:bg-[var(--field)]">
-            Наверх ↑
+            {t('toTop')} ↑
           </a>
         </div>
       </section>
