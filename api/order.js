@@ -17,11 +17,11 @@ export default async function handler(req, res) {
       "Сумма: " + (qty * price) + " сом\n" +
       "Код: " + code;
 
-    const r = await fetch("https://api.telegram.org/bot" + process.env.9154822719:AAEyx8iWbfaoT6XTfBDMBJ6HprsIO-lMIZk + "/sendMessage", {
+    const r = await fetch("https://api.telegram.org/bot" + process.env.BOT_TOKEN + "/sendMessage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: process.env.8359198287,
+        chat_id: process.env.CHAT_ID,
         text: text,
         reply_markup: {
           inline_keyboard: [[{ text: "Подтвердить", callback_data: ("ok:" + code).slice(0, 64) }]],
