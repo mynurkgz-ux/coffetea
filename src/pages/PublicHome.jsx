@@ -7,8 +7,10 @@ import { SiteBannerCarousel } from '../features/site/SiteBannerCarousel.jsx';
 import { PublicParticles } from '../features/site/PublicParticles.jsx';
 import { SiteReviews } from '../features/site/SiteReviews.jsx';
 import { PublicFooter, PublicHeader } from './PublicLayout.jsx';
+import { useLanguage } from '../shared/ui/index.jsx';
 
 export function PublicHome({theme='orange',animation='soda',products=[],menuLoading=false,banners=[],reviews=[],me,onSubmitReview}){
+  const {t}=useLanguage();
   const [intro,setIntro]=useState('visible');
   const [featuredIndex,setFeaturedIndex]=useState(0);
   const [reducePromotionMotion,setReducePromotionMotion]=useState(
@@ -66,11 +68,11 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
         </div>
         <div className="welcome-splash-content">
           <span className="welcome-splash-logo">C</span>
-          <p className="welcome-splash-brand">ТВОЯ КОФЕЙНЯ</p>
+          <p className="welcome-splash-brand">{t('yourCafe')}</p>
           <h1>CoffeTea</h1>
-          <p className="welcome-splash-caption">Кофе · чай · моменты уюта</p>
+          <p className="welcome-splash-caption">{t('coffeeMoments')}</p>
         </div>
-        <button type="button" className="welcome-splash-skip" onClick={()=>setIntro('hidden')}>Пропустить</button>
+        <button type="button" className="welcome-splash-skip" onClick={()=>setIntro('hidden')}>{t('skip')}</button>
       </div>}
       <PublicHeader me={me}/>
       <SiteBannerCarousel banners={banners}/>
@@ -92,23 +94,23 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
         <div className={`relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-16 sm:px-8 sm:py-20 md:py-24 ${discountedProducts.length?'md:grid-cols-[minmax(0,1fr)_minmax(18rem,.8fr)]':''}`}>
           <div className="relative z-[1] max-w-3xl">
             <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[.16em] text-white">
-              <span className="h-2 w-2 rounded-full bg-white"/> КОФЕ · ЧАЙ · ДЕСЕРТЫ
+              <span className="h-2 w-2 rounded-full bg-white"/> {t('coffeeTeaDesserts')}
             </p>
             <h1 className="max-w-2xl text-5xl font-black leading-[1.04] tracking-[-.045em] sm:text-6xl lg:text-7xl">
-              CoffeTea<br/><span className="text-orange-50">твой момент уюта.</span>
+              CoffeTea<br/><span className="text-orange-50">{t('cozyMoment')}</span>
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-white/90 sm:text-lg">
-              Любимый кофе, согревающий чай и что-нибудь вкусное. Сделай паузу и наслаждайся моментом.
+              {t('heroText')}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a href="#menu" className="rounded-full bg-white px-6 py-3.5 text-sm font-extrabold text-[var(--soft)] shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-50">
-                Открыть меню <span aria-hidden="true">↓</span>
+                {t('openMenu')} <span aria-hidden="true">↓</span>
               </a>
               <a href="#visit" className="rounded-full border border-white/50 px-6 py-3.5 text-sm font-extrabold text-white transition hover:bg-white/15">
-                Как нас найти
+                {t('howToFind')}
               </a>
             </div>
-            <p className="mt-8 text-xs font-semibold text-white/80">Налей себе немного хорошего настроения ☕</p>
+            <p className="mt-8 text-xs font-semibold text-white/80">{t('goodMood')}</p>
           </div>
           {discountedProducts.length>0&&(()=>{
             const product=discountedProducts[featuredIndex%discountedProducts.length];
@@ -152,11 +154,11 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
         <div className="relative z-[1] mx-auto max-w-7xl px-5 py-16 sm:px-8 md:py-20">
         <div className="mb-9 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">Меню кафе</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Что вам сегодня по вкусу?</h2>
+            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">{t('menuCafe')}</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{t('menuQuestion')}</h2>
           </div>
           <Link to="/catalog" className="rounded-full border border-[var(--border)] px-5 py-3 text-sm font-extrabold transition hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white">
-            Весь каталог
+            {t('allCatalog')}
           </Link>
         </div>
         <ProductCarousel products={uniqueMenuProducts(products)} loading={menuLoading} limit={8}/>
@@ -167,11 +169,11 @@ export function PublicHome({theme='orange',animation='soda',products=[],menuLoad
         <PublicParticles animation={animation}/>
         <div className="relative z-[1] mx-auto grid max-w-7xl gap-8 md:grid-cols-[.8fr_1.2fr] md:items-end">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">О Coffetea</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Место, где день становится чуточку лучше</h2>
+            <p className="text-xs font-extrabold uppercase tracking-[.18em] text-[var(--accent)]">{t('aboutCoffetea')}</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{t('aboutTitle')}</h2>
           </div>
           <p className="max-w-2xl text-base leading-7 text-[#67736a]">
-            Мы создали Coffetea для простых радостей: встретиться с близкими, передохнуть между делами или взять любимый напиток с собой. Выбирайте то, что нравится именно вам.
+            {t('aboutText')}
           </p>
         </div>
       </section>

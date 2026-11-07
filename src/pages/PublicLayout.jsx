@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiCoffee } from 'react-icons/fi';
+import { LanguageSwitcher, useLanguage } from '../shared/ui/index.jsx';
 
 export function PublicHeader({me}){
+  const {t}=useLanguage();
   return (
     <header className="relative z-10 border-b border-[var(--border)] bg-white px-5 py-4 sm:px-8">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3">
@@ -12,25 +14,29 @@ export function PublicHeader({me}){
           </span>
           <span className="flex flex-col">
             <span className="text-xl font-black leading-none tracking-tight text-[#30251f]">Coffe<span className="text-[var(--accent)]">Tea</span></span>
-            <span className="mt-1 text-[9px] font-extrabold uppercase tracking-[.2em] text-[#8a796f]">кофе · чай · уют</span>
+            <span className="mt-1 text-[9px] font-extrabold uppercase tracking-[.2em] text-[#8a796f]">{t('tagline')}</span>
           </span>
         </Link>
-        <nav aria-label="Основная навигация" className="order-3 flex w-full items-center justify-between border-t border-[var(--border)] pt-3 text-xs font-bold text-[#76665d] sm:order-none sm:w-auto sm:gap-5 sm:border-0 sm:pt-0 sm:text-sm">
-          <Link className="transition hover:text-[var(--accent)]" to="/about">О нас</Link>
-          <Link className="transition hover:text-[var(--accent)]" to="/catalog">Каталог</Link>
-          <Link className="transition hover:text-[var(--accent)]" to="/contacts">Контакты</Link>
+        <nav aria-label={t('mainNav')} className="order-3 flex w-full items-center justify-between border-t border-[var(--border)] pt-3 text-xs font-bold text-[#76665d] sm:order-none sm:w-auto sm:gap-5 sm:border-0 sm:pt-0 sm:text-sm">
+          <Link className="transition hover:text-[var(--accent)]" to="/about">{t('about')}</Link>
+          <Link className="transition hover:text-[var(--accent)]" to="/catalog">{t('catalog')}</Link>
+          <Link className="transition hover:text-[var(--accent)]" to="/contacts">{t('contacts')}</Link>
         </nav>
         {me?.role === 'buyer' ? (
-          <Link to="/account" className="rounded-full bg-[var(--accent)] px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 sm:text-sm">
-            Мой кабинет
-          </Link>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <LanguageSwitcher/>
+            <Link to="/account" className="rounded-full bg-[var(--accent)] px-4 py-2.5 text-xs font-bold text-white transition hover:opacity-90 sm:text-sm">
+              {t('account')}
+            </Link>
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <LanguageSwitcher/>
             <Link to="/login" className="rounded-full border border-[var(--border)] px-3 py-2.5 text-xs font-bold transition hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white sm:px-4 sm:text-sm">
-              Войти
+              {t('login')}
             </Link>
             <Link to="/register" className="rounded-full bg-[var(--accent)] px-3 py-2.5 text-xs font-bold text-white transition hover:opacity-90 sm:px-4 sm:text-sm">
-              Регистрация
+              {t('register')}
             </Link>
           </div>
         )}

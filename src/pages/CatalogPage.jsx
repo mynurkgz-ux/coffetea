@@ -5,11 +5,12 @@ import { MENU_CATEGORIES, THEMES } from '../shared/config.js';
 import { createCatalogOrder } from '../shared/data/firestoreStore.js';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
 import { finalPrice, money, uniqueMenuProducts } from '../shared/lib/utils.js';
-import { Modal } from '../shared/ui/index.jsx';
+import { Modal, useLanguage } from '../shared/ui/index.jsx';
 import { btnCls, inputCls } from '../shared/ui/styles.js';
 import { PublicPageShell } from './PublicLayout.jsx';
 
 export function CatalogPage({ theme = 'orange', products = [], loading = false, me, buyerOrders = [] }) {
+  const {t}=useLanguage();
   const menuProducts = useMemo(() => uniqueMenuProducts(products), [products]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -115,14 +116,14 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
     <PublicPageShell themeStyle={themeStyle} me={me}>
       <section className="bg-gradient-to-br from-[var(--bgFrom)] to-[var(--bgTo)] px-5 py-12 text-white sm:px-8 sm:py-16">
         <div className="mx-auto max-w-7xl">
-          <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white/80">Кофе · чай · десерты</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">Меню кафе</h1>
+          <p className="text-xs font-extrabold uppercase tracking-[.18em] text-white/80">{t('coffeeTeaDesserts')}</p>
+          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{t('menuCafe')}</h1>
           <p className="mt-3 text-sm text-white/85">Соберите заказ и оплатите наличными на кассе.</p>
         </div>
       </section>
       <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14">
         {loading ? (
-          <p className="py-12 text-center text-sm font-semibold text-[#67736a]">Загружаем товары…</p>
+          <p className="py-12 text-center text-sm font-semibold text-[#67736a]">{t('loading')}</p>
         ) : menuProducts.length ? (
           <>
             <div className="mb-6 grid gap-3 rounded-3xl border border-[var(--border)] bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5">
@@ -130,7 +131,7 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                 type="search"
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder="Поиск по названию или описанию"
+                placeholder={t('search')}
                 aria-label="Поиск товаров"
                 className={inputCls}
               />
@@ -146,7 +147,7 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                 aria-pressed={!selectedCategory}
                 className={`rounded-full border px-4 py-2 text-sm font-bold transition ${!selectedCategory?'border-[var(--accent)] bg-[var(--accent)] text-white':'border-[var(--border)] bg-white text-[#67736a] hover:border-[var(--accent)]'}`}
               >
-                Все
+                {t('all')}
               </button>
               {categories.map(category=>(
                 <button
@@ -166,21 +167,21 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                   onChange={event => setDiscountedOnly(event.target.checked)}
                   className="h-4 w-4 accent-[var(--accent)]"
                 />
-                Со скидкой
+                {t('discount')}
               </label>
             </div>
             {filteredProducts.length ? (
-              <p className="mb-4 text-sm font-semibold text-[#67736a]">Найдено товаров: {filteredProducts.length}</p>
+              <p className="mb-4 text-sm font-semibold text-[#67736a]">{t('found')} {filteredProducts.length}</p>
             ) : (
               <div className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--field)] px-6 py-12 text-center">
-                <p className="text-lg font-extrabold">Товары не найдены</p>
+                <p className="text-lg font-extrabold">{t('notFound')}</p>
                 <p className="mt-2 text-sm text-[#67736a]">Измените параметры фильтрации или сбросьте их.</p>
                 <button
                   type="button"
                   onClick={() => { setSearch(''); setSelectedCategory(''); setDiscountedOnly(false); }}
                   className="mt-4 rounded-full bg-[var(--accent)] px-5 py-3 text-sm font-extrabold text-white"
                 >
-                  Сбросить фильтры
+                  {t('reset')}
                 </button>
               </div>
             )}

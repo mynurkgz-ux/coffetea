@@ -1,9 +1,90 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FiGlobe } from 'react-icons/fi';
 
+const translations={
+  RU:{
+    about:'О нас',catalog:'Каталог',contacts:'Контакты',login:'Войти',register:'Регистрация',account:'Мой кабинет',
+    tagline:'кофе · чай · уют',mainNav:'Основная навигация',home:'Главная',menu:'Меню',orders:'Заказы',
+    openMenu:'Открыть меню',howToFind:'Как нас найти',cozyMoment:'твой момент уюта.',
+    heroText:'Любимый кофе, согревающий чай и что-нибудь вкусное. Сделай паузу и наслаждайся моментом.',
+    skip:'Пропустить',coffeeTeaDesserts:'КОФЕ · ЧАЙ · ДЕСЕРТЫ',yourCafe:'ТВОЯ КОФЕЙНЯ',
+    coffeeMoments:'Кофе · чай · моменты уюта',goodMood:'Налей себе немного хорошего настроения ☕',
+    menuCafe:'Меню кафе',menuQuestion:'Что вам сегодня по вкусу?',allCatalog:'Весь каталог',
+    aboutCoffetea:'О Coffetea',aboutTitle:'Место, где день становится чуточку лучше',
+    aboutText:'Мы создали Coffetea для простых радостей: встретиться с близкими, передохнуть между делами или взять любимый напиток с собой. Выбирайте то, что нравится именно вам.',
+    aboutCatalog:'В каталоге собраны товары кафе — напитки, чай и десерты. Загляните в каталог и выберите то, что вам сегодня по вкусу.',
+    meet:'До встречи',findUs:'Как нас найти',contactText:'Загляните в Coffetea за кофе, чаем и чем-нибудь вкусным.',
+    qrText:'Откройте QR-код меню в кафе или спросите у сотрудников — они подскажут, как посмотреть меню и сделать заказ.',
+    viewCatalog:'Посмотреть каталог',openMap:'Открыть',navigation:'Навигация',cart:'Корзина',
+    discover:'Загляните в Coffetea',search:'Поиск по названию или описанию',all:'Все',discount:'Со скидкой',
+    found:'Найдено товаров:',notFound:'Товары не найдены',reset:'Сбросить фильтры',loading:'Загружаем товары…',
+    myOrders:'Мои заказы',footerText:'Кофе, чай и тёплые встречи. Выберите любимое в меню CoffeTea.',
+    footerMade:'Сделано с теплом · Кофе и чай на каждый день'
+  },
+  KG:{
+    about:'Биз жөнүндө',catalog:'Каталог',contacts:'Байланыштар',login:'Кирүү',register:'Катталуу',account:'Менин кабинетим',
+    tagline:'кофе · чай · жайлуулук',mainNav:'Негизги навигация',home:'Башкы бет',menu:'Меню',orders:'Заказдар',
+    openMenu:'Менюну ачуу',howToFind:'Кайдан табуу керек',cozyMoment:'жайлуулук моменти.',
+    heroText:'Сүйүктүү кофе, жылуулаткан чай жана даамдуу нерсе. Убакыттан тыныгуу алып, жагымдуулукка ырык бериңиз.',
+    skip:'Өткөрүп жиберүү',coffeeTeaDesserts:'КОФЕ · ЧАЙ · ДЕСЕРТТЕР',yourCafe:'СИЗДИН КОФЕЙНА',
+    coffeeMoments:'Кофе · чай · жайлуулук моменттери',goodMood:'Жакшы маанайга бир аз куйуңуз ☕',
+    menuCafe:'Кафе менюсу',menuQuestion:'Бүгүн эмнеден сүйөсүз?',allCatalog:'Каталогдун баары',
+    aboutCoffetea:'Coffetea жөнүндө',aboutTitle:'Күнүңүздү бир аз жакшы кылган жер',
+    aboutText:'Биз Coffeteaны жөнөкөй ырахаттар үчүн түздүк: жакындарыңыз менен жолугуу, иштердин ортосунда эс алуу же сүйүктүү суусундугуңузду алып кетүү. Сизге жагган нерсени тандаңыз.',
+    aboutCatalog:'Каталогдо кафе өнүмдөрү: суусундуктар, чай жана десерттер топтолгон. Каталогду ачып, бүгүн кандай нерсе жагса, ошону тандаңыз.',
+    meet:'Жолугушканга чейин',findUs:'Кайдан табуу керек',contactText:'Coffeteaга кофе, чай жана даамдуу нерсе ичип келишиңиз.',
+    qrText:'Кафедеги меню QR-кодун ачыңыз же кызматкерлерден сураңыз — алар менюну көрүп, заказ берүүнү түшүндүрүшөт.',
+    viewCatalog:'Каталогду көрүү',openMap:'Ачуу',navigation:'Навигация',cart:'Корзина',
+    discover:'Coffeteaга келиңиз',search:'Аты же сыпаттамасы боюнча издөө',all:'Баары',discount:'Жеңилдик менен',
+    found:'Табылган товарлар:',notFound:'Товарлар табылган жок',reset:'Фильтрлерди тазалоо',loading:'Товарлар жүктөлүүдө…',
+    myOrders:'Менин заказдарым',footerText:'Кофе, чай жана жылуу жолугушуу. CoffeTea менюсунан сүйүктүү нерсеңизди тандаңыз.',
+    footerMade:'Жылуулук менен жасалды · Ар күнү кофе жана чай'
+  },
+  ENG:{
+    about:'About us',catalog:'Catalog',contacts:'Contacts',login:'Log in',register:'Sign up',account:'My account',
+    tagline:'coffee · tea · comfort',mainNav:'Main navigation',home:'Home',menu:'Menu',orders:'Orders',
+    openMenu:'Open menu',howToFind:'How to find us',cozyMoment:'your cozy moment.',
+    heroText:'Favorite coffee, warming tea, and something delicious. Take a break and enjoy the moment.',
+    skip:'Skip',coffeeTeaDesserts:'COFFEE · TEA · DESSERTS',yourCafe:'YOUR CAFE',
+    coffeeMoments:'Coffee · tea · cozy moments',goodMood:'Pour yourself a little good mood ☕',
+    menuCafe:'Cafe menu',menuQuestion:'What sounds good today?',allCatalog:'View all catalog',
+    aboutCoffetea:'About Coffetea',aboutTitle:'A place that makes your day a little better',
+    aboutText:'We created Coffetea for simple pleasures: meeting loved ones, taking a break between errands, or grabbing your favorite drink to go. Choose what you like.',
+    aboutCatalog:'The catalog features cafe drinks, tea, and desserts. Browse it and choose whatever tastes good today.',
+    meet:'See you soon',findUs:'How to find us',contactText:'Drop by Coffetea for coffee, tea, and something tasty.',
+    qrText:'Open the cafe menu QR code or ask our staff—they will help you view the menu and place an order.',
+    viewCatalog:'View catalog',openMap:'Open',navigation:'Navigation',cart:'Cart',
+    discover:'Visit Coffetea',search:'Search by name or description',all:'All',discount:'Discounted',
+    found:'Products found:',notFound:'No products found',reset:'Reset filters',loading:'Loading products…',
+    myOrders:'My orders',footerText:'Coffee, tea, and warm meetings. Choose your favorite from the CoffeTea menu.',
+    footerMade:'Made with warmth · Coffee and tea for every day'
+  }
+};
+
+export function useLanguage(){
+  const [language,setLanguage]=useState(()=>localStorage.getItem('coffetea-language')||'RU');
+  useEffect(()=>{
+    function update(event){
+      const next=event.detail?.language||localStorage.getItem('coffetea-language')||'RU';
+      setLanguage(next);
+    }
+    function updateStorage(event){
+      if(event.key==='coffetea-language') setLanguage(event.newValue||'RU');
+    }
+    window.addEventListener('coffetea-language-change',update);
+    window.addEventListener('storage',updateStorage);
+    return ()=>{
+      window.removeEventListener('coffetea-language-change',update);
+      window.removeEventListener('storage',updateStorage);
+    };
+  },[]);
+  const t=(key)=>translations[language]?.[key]||translations.RU[key]||key;
+  return {language,t};
+}
+
 export function LanguageSwitcher(){
   const [open,setOpen]=useState(false);
-  const [language,setLanguage]=useState(()=>localStorage.getItem('coffetea-language')||'RU');
+  const {language}=useLanguage();
   const rootRef=useRef(null);
   const languages=[
     {code:'KG',label:'Кыргызча'},
@@ -32,7 +113,6 @@ export function LanguageSwitcher(){
   },[]);
 
   function chooseLanguage(code){
-    setLanguage(code);
     localStorage.setItem('coffetea-language',code);
     document.documentElement.lang=code==='ENG'?'en':code==='KG'?'ky':'ru';
     window.dispatchEvent(new CustomEvent('coffetea-language-change',{detail:{language:code}}));
@@ -40,9 +120,9 @@ export function LanguageSwitcher(){
   }
 
   return (
-    <div ref={rootRef} className="fixed right-4 top-1/2 z-[50] -translate-y-1/2 sm:right-6">
+    <div ref={rootRef} className="relative z-[50]">
       {open&&(
-        <div className="absolute right-[58px] top-1/2 w-36 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-1.5 shadow-2xl shadow-black/20">
+        <div className="absolute right-0 top-[calc(100%+10px)] w-36 rounded-2xl border border-black/10 bg-white p-1.5 shadow-2xl shadow-black/20">
           {languages.map(item=>(
             <button
               key={item.code}
@@ -66,7 +146,7 @@ export function LanguageSwitcher(){
         onClick={()=>setOpen(value=>!value)}
         aria-label="Выбрать язык"
         aria-expanded={open}
-        className="grid h-14 w-14 place-items-center rounded-full bg-[var(--accent)] text-white shadow-xl shadow-[var(--accent)]/30 ring-4 ring-white/80 transition hover:scale-105 active:scale-95"
+        className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] bg-white text-[var(--accent)] shadow-sm transition hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white sm:h-11 sm:w-11"
       >
         <FiGlobe aria-hidden="true" size={25}/>
       </button>
