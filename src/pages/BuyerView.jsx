@@ -3,6 +3,8 @@ import { MusicBtn, SettingsModal } from '../features/settings/components.jsx';
 import { finalPrice, money, uid } from '../shared/lib/utils.js';
 import { btnCls } from '../shared/ui/styles.js';
 import { Modal } from '../shared/ui/index.jsx';
+import { QuantityStepper } from '../shared/ui/QuantityStepper.jsx';
+import { notifyTelegramOrder } from '../shared/data/firestoreStore.js';
 
 export function BuyerView({db,update,me,theme,setTheme,publicTheme,savePublicSiteAppearance,musicCtl}){
   const owner=db.users.find(u=>u.id===me.ownerId);
@@ -34,6 +36,7 @@ export function BuyerView({db,update,me,theme,setTheme,publicTheme,savePublicSit
     const id=uid();
     const order={id,code:id.slice(-4).toUpperCase(),ownerId:owner.id,buyerId:me.id,buyerContact:me.contact,items:snap,total:money(Math.round(total*100)/100,cur),t:Date.now(),status:'new'};
     update(d=>{d.orders.push(order);d.carts[me.id]={};});
+    notifyTelegramOrder(order,owner?.business);
     setModal({receipt:order});
   }
   function logout(){update(d=>{d.session=null;});}
@@ -60,11 +63,7 @@ export function BuyerView({db,update,me,theme,setTheme,publicTheme,savePublicSit
                 <div className="p-3">
                   <p className="font-bold truncate">{p.name}</p>
                   <p className="font-bold text-sm">{p.discount>0?<>{money(finalPrice(p),p.currency)} <s className="text-[var(--soft2)] font-normal ml-1">{money(p.price,p.currency)}</s></>:money(p.price,p.currency)}</p>
-                  <div className="mt-2 flex items-center justify-between bg-[var(--field)] rounded-full p-1">
-                    <button onClick={()=>qty(p.id,-1)} disabled={!q} className="w-9 h-9 rounded-full bg-white disabled:opacity-40 font-bold">−</button>
-                    <span className="font-bold">{q}</span>
-                    <button onClick={()=>qty(p.id,1)} className="w-9 h-9 rounded-full bg-[var(--accent)] text-white font-bold">+</button>
-                  </div>
+                  <QuantityStepper className="mt-2" size="h-9 w-9" quantity={q} onDecrease={()=>qty(p.id,-1)} onIncrease={()=>qty(p.id,1)} decreaseLabel={`Убрать ${p.name}`} increaseLabel={`Добавить ${p.name}`}/>
                 </div>
               </div>
             );

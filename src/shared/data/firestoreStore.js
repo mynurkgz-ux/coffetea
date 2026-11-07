@@ -600,3 +600,21 @@ function venueData(user){
   const {id,role,contact,ownerId,staffCode,adminCode,...data}=user;
   return data;
 }
+
+// Отправить уведомление о заказе в Telegram (через /api/order на Vercel).
+// Ошибки не ломают оформление заказа — заказ уже сохранён в Firestore.
+export function notifyTelegramOrder(order,venue){
+  fetch('/api/order',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      code:order.code,
+      buyerContact:order.buyerContact,
+      items:order.items,
+      total:order.total,
+      venue:venue||''
+    })
+  })
+    .then(async response=>{if(!response.ok)console.error('Telegram notification failed:',await response.text());})
+    .catch(error=>console.error('Telegram notification failed:',error));
+}

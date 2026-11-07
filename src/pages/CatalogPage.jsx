@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiShoppingCart } from 'react-icons/fi';
 import { MENU_CATEGORIES, THEMES } from '../shared/config.js';
-import { createCatalogOrder } from '../shared/data/firestoreStore.js';
+import { createCatalogOrder, notifyTelegramOrder } from '../shared/data/firestoreStore.js';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
+import { CatalogProductCard } from '../features/catalog/CatalogProductCard.jsx';
+import { CategoryFilter } from '../features/catalog/CategoryFilter.jsx';
+import { FloatingCartButton } from '../features/catalog/FloatingCartButton.jsx';
 import { finalPrice, money, uniqueMenuProducts } from '../shared/lib/utils.js';
 import { Modal, useLanguage } from '../shared/ui/index.jsx';
 import { btnCls, inputCls } from '../shared/ui/styles.js';
@@ -11,24 +13,6 @@ import { PublicPageShell } from './PublicLayout.jsx';
 
 export function CatalogPage({ theme = 'orange', products = [], loading = false, me, buyerOrders = [] }) {
   const {language,t}=useLanguage();
-  const translateCategory=(category)=>{
-    const categories={
-      'Напитки':{KG:'Суусундуктар',ENG:'Drinks'},
-      'Кофе и чай':{KG:'Кофе жана чай',ENG:'Coffee and tea'},
-      'Торты и десерты':{KG:'Торттор жана десерттер',ENG:'Cakes and desserts'},
-      'Шашлыки':{KG:'Шашлык',ENG:'Grilled meat'},
-      'Мясо':{KG:'Эт',ENG:'Meat'},
-      'Закуски':{KG:'Тамактануулар',ENG:'Appetizers'},
-      'Салаты':{KG:'Салаттар',ENG:'Salads'},
-      'Завтраки':{KG:'Эртеңки тамак',ENG:'Breakfast'},
-      'Гарниры':{KG:'Гарнирлер',ENG:'Side dishes'},
-      'Уникальное':{KG:'Өзгөчө',ENG:'Unique'},
-      'Другое':{KG:'Башка',ENG:'Other'},
-      'Без категории':{KG:'Категориясыз',ENG:'No category'}
-    };
-    const savedLanguage=localStorage.getItem('coffetea-language')||'RU';
-    return categories[category]?.[savedLanguage]||category;
-  };
   const menuProducts = useMemo(() => uniqueMenuProducts(products), [products]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -109,6 +93,7 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
     setError('');
     try {
       const order = await createCatalogOrder(cartItems, me);
+      notifyTelegramOrder(order);
       setCart({});
       setModal({ receipt: order });
     } catch (cause) {
@@ -158,36 +143,13 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
                 {t('reviewLeave')}
               </a>
             </div>
-            <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label={t('categoryFilter')}>
-              <button
-                type="button"
-                onClick={() => setSelectedCategory('')}
-                aria-pressed={!selectedCategory}
-                className={`rounded-full border px-4 py-2 text-sm font-bold transition ${!selectedCategory?'border-[var(--accent)] bg-[var(--accent)] text-white':'border-[var(--border)] bg-white text-[#67736a] hover:border-[var(--accent)]'}`}
-              >
-                {t('all')}
-              </button>
-              {categories.map(category=>(
-                <button
-                  key={category}
-                  type="button"
-                  onClick={()=>setSelectedCategory(category)}
-                  aria-pressed={selectedCategory===category}
-                  className={`rounded-full border px-4 py-2 text-sm font-bold transition ${selectedCategory===category?'border-[var(--accent)] bg-[var(--accent)] text-white':'border-[var(--border)] bg-white text-[#67736a] hover:border-[var(--accent)]'}`}
-                >
-                  {translateCategory(category)}
-                </button>
-              ))}
-              <label className="flex min-h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-bold">
-                <input
-                  type="checkbox"
-                  checked={discountedOnly}
-                  onChange={event => setDiscountedOnly(event.target.checked)}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                {t('discount')}
-              </label>
-            </div>
+            <CategoryFilter
+              categories={categories}
+              selected={selectedCategory}
+              onSelect={setSelectedCategory}
+              discountedOnly={discountedOnly}
+              onDiscountedChange={setDiscountedOnly}
+            />
             {filteredProducts.length ? (
               <p className="mb-4 text-sm font-semibold text-[#67736a]">{t('found')} {filteredProducts.length}</p>
             ) : (
@@ -204,33 +166,9 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
               </div>
             )}
             {filteredProducts.length > 0 && <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map(product => {
-              const quantity = cart[product.id] || 0;
-              return (
-                <article key={product.id} className="group flex flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-                  <div className="relative aspect-[4/3] overflow-hidden bg-[var(--field)]">
-                    {product.img
-                      ? <img src={product.img} alt={product.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                      : <div className="grid h-full w-full place-items-center text-5xl font-black text-[var(--soft2)]" aria-hidden="true">{(product.name || '?')[0].toUpperCase()}</div>}
-                    {product.discount > 0 && <span className="absolute left-3 top-3 rounded-full bg-[var(--accent)] px-3 py-1 text-xs font-extrabold text-white">-{product.discount}%</span>}
-                  </div>
-                  <div className="flex flex-1 flex-col p-4">
-                    <h2 className="truncate text-lg font-extrabold">{product.name}</h2>
-                    {product.info && <p className="mt-1 min-h-10 text-sm leading-5 text-[#67736a]">{product.info}</p>}
-                    <p className="mt-3 text-base font-black text-[var(--accent)]">
-                      {product.discount > 0
-                        ? <>{money(finalPrice(product), product.currency)} <s className="ml-1 text-sm font-normal text-[#929b94]">{money(product.price, product.currency)}</s></>
-                        : money(product.price, product.currency)}
-                    </p>
-                    <div className="mt-4 flex items-center justify-between rounded-full bg-[var(--field)] p-1">
-                          <button type="button" onClick={() => changeQuantity(product, -1)} disabled={!quantity} aria-label={`${t('removeProduct')} ${product.name}`} className="h-10 w-10 rounded-full bg-white font-bold disabled:opacity-40">−</button>
-                          <span className="font-bold">{quantity}</span>
-                          <button type="button" onClick={() => changeQuantity(product, 1)} aria-label={`${t('addProduct')} ${product.name}`} className="h-10 w-10 rounded-full bg-[var(--accent)] font-bold text-white">+</button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+            {filteredProducts.map(product => (
+              <CatalogProductCard key={product.id} product={product} quantity={cart[product.id] || 0} onChange={changeQuantity} />
+            ))}
             </div>}
           </>
         ) : (
@@ -251,16 +189,7 @@ export function CatalogPage({ theme = 'orange', products = [], loading = false, 
             : <p className="rounded-2xl bg-[var(--field)] p-5 text-sm text-[var(--soft)]">{t('ordersStatus')}</p>}
         </section>
       )}
-      {cartCount > 0 && (
-        <button type="button" onClick={proceedToCheckout} className="fixed bottom-5 right-5 z-20 flex h-14 items-center gap-3 rounded-full bg-black px-5 font-bold text-white shadow-xl sm:bottom-7 sm:right-8">
-          <span className="relative grid h-8 w-8 place-items-center rounded-full bg-amber-300 text-black">
-            <FiShoppingCart aria-hidden="true" size={17} />
-            <span className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--accent)] px-1 text-xs font-extrabold text-white">{cartCount}</span>
-          </span>
-          {t('cartTitle')}
-          <b>{totalLabel}</b>
-        </button>
-      )}
+      <FloatingCartButton count={cartCount} total={totalLabel} onClick={proceedToCheckout} />
       {modal === 'cart' && (
         <Modal title={t('cartTitle')} onClose={() => setModal(null)}>
           <div className="space-y-5">

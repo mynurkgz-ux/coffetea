@@ -4,6 +4,11 @@ import { OrderCard } from '../features/orders/OrderCard.jsx';
 import { SiteBannerForm } from '../features/site/SiteBannerForm.jsx';
 import { ProductCard, ProductForm } from '../features/products/components.jsx';
 import { PublicHomeSettingsModal } from '../features/settings/components.jsx';
+import { BannerCard } from '../features/site/BannerCard.jsx';
+import { ReviewModerationCard } from '../features/site/ReviewModerationCard.jsx';
+import { StatCard } from '../features/dashboard/StatCard.jsx';
+import { EmptyState } from '../shared/ui/EmptyState.jsx';
+import { ErrorAlert } from '../shared/ui/ErrorAlert.jsx';
 
 const navigation=[
   {id:'home',label:'Главная',icon:'⌂'},
@@ -22,6 +27,7 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
   const [bannerModal,setBannerModal]=useState(null);
   const [bannerError,setBannerError]=useState('');
   const [reviewError,setReviewError]=useState('');
+  const [orderError,setOrderError]=useState('');
   const siteProducts=publicProducts.filter(product=>product.isSiteProduct);
   const pendingReviews=siteReviews.filter(review=>review.status==='pending');
   const pendingOrders=publicOrders.filter(order=>!['done','cancelled'].includes(order.status));
@@ -79,6 +85,16 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
     }catch(error){
       console.error('Failed to moderate site review:',error);
       setReviewError(error.message||'Не удалось обновить отзыв.');
+    }
+  }
+
+  async function changeOrderStatus(order,status){
+    try{
+      await setPublicOrderStatus(order.venueId||null,order.id,status);
+      setOrderError('');
+    }catch(error){
+      console.error('Failed to update order status:',error);
+      setOrderError(error.message||'Не удалось изменить статус заказа.');
     }
   }
 
@@ -140,12 +156,7 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
                   {label:'Всего заказов',value:publicOrders.length},
                   {label:'Новые заказы',value:pendingOrders.length},
                   {label:'Отзывы на проверке',value:pendingReviews.length}
-                ].map(card=>(
-                  <article key={card.label} className="rounded-3xl bg-white p-5 shadow-lg">
-                    <p className="text-sm font-semibold text-[var(--soft)]">{card.label}</p>
-                    <p className="mt-2 text-3xl font-black">{card.value}</p>
-                  </article>
-                ))}
+                ].map(card=><StatCard key={card.label} variant="admin" {...card}/>)}
               </div>
             </div>
           )}
@@ -159,18 +170,12 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
                 <button type="button" onClick={()=>{setBannerError('');setBannerModal({});}} className="rounded-full bg-[var(--accent)] px-5 py-3 font-bold text-white shadow">+ Добавить баннер</button>
               </section>
               {siteBannersLoadError&&<p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800">Не удалось загрузить список баннеров из Firestore: {siteBannersLoadError} Проверьте и опубликуйте актуальные правила Firestore для проекта.</p>}
-              {bannerError&&<p role="alert" className="rounded-2xl bg-red-100 p-4 text-sm font-semibold text-red-700">{bannerError}</p>}
+              <ErrorAlert message={bannerError}/>
               {siteBanners.length
                 ?<div className="grid gap-4 md:grid-cols-2">{siteBanners.map(banner=>(
-                  <button key={banner.id} type="button" onClick={()=>{setBannerError('');setBannerModal(banner);}} className="overflow-hidden rounded-3xl bg-white text-left shadow-lg transition hover:-translate-y-1">
-                    <div className="relative aspect-[16/7] bg-[var(--field)]">
-                      {banner.img&&<img src={banner.img} alt="" className="h-full w-full object-cover"/>}
-                      <span className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-bold ${banner.active?'bg-emerald-100 text-emerald-800':'bg-gray-100 text-gray-600'}`}>{banner.active?'Опубликован':'Скрыт'}</span>
-                    </div>
-                    <div className="p-4"><h3 className="font-extrabold">{banner.title}</h3><p className="mt-1 line-clamp-2 text-sm text-[var(--soft)]">{banner.text}</p><p className="mt-3 text-xs font-bold text-[var(--accent)]">Порядок показа: {banner.order||0} · Нажмите для редактирования</p></div>
-                  </button>
+                  <BannerCard key={banner.id} banner={banner} onClick={()=>{setBannerError('');setBannerModal(banner);}}/>
                 ))}</div>
-                :<div className="rounded-3xl bg-white px-6 py-12 text-center text-sm text-[var(--soft)]">Баннеров пока нет. Добавьте первый, чтобы он появился на сайте.</div>}
+                :<EmptyState>Баннеров пока нет. Добавьте первый, чтобы он появился на сайте.</EmptyState>}
             </div>
           )}
           {section==='settings'&&(
@@ -191,10 +196,10 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
                 </div>
                 <button type="button" onClick={()=>{setProductError('');setProductModal({});}} className="rounded-full bg-[var(--accent)] px-5 py-3 font-bold text-white shadow">+ Добавить товар</button>
               </section>
-              {productError&&<p role="alert" className="rounded-2xl bg-red-100 p-4 text-sm font-semibold text-red-700">{productError}</p>}
+              <ErrorAlert message={productError}/>
               {siteProducts.length
                 ?<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">{siteProducts.map(product=><div key={product.id}><ProductCard p={product} onClick={()=>{setProductError('');setProductModal(product);}}/></div>)}</div>
-                :<div className="rounded-3xl bg-white px-6 py-12 text-center text-sm text-[var(--soft)]">Товаров сайта пока нет. Нажмите «Добавить товар».</div>}
+                :<EmptyState>Товаров сайта пока нет. Нажмите «Добавить товар».</EmptyState>}
             </div>
           )}
           {section==='rating'&&(
@@ -204,27 +209,12 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
                 <h2 className="mt-1 text-xl font-extrabold">Отзывы <span className="text-[var(--soft)]">({siteReviews.length})</span></h2>
                 <p className="mt-2 text-sm text-[var(--soft)]">На проверке: {pendingReviews.length} · Опубликовано: {siteReviews.filter(review=>review.status==='approved').length}</p>
               </section>
-              {reviewError&&<p role="alert" className="rounded-2xl bg-red-100 p-4 text-sm font-semibold text-red-700">{reviewError}</p>}
+              <ErrorAlert message={reviewError}/>
               {siteReviews.length
                 ?<div className="space-y-3">{siteReviews.map(review=>(
-                  <article key={review.id} className="rounded-3xl bg-white p-5 shadow-lg">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-lg tracking-widest text-[var(--accent)]">{'★'.repeat(review.rating)}{'☆'.repeat(5-review.rating)}</p>
-                        <p className="mt-1 text-xs font-semibold text-[var(--soft)]">{review.authorName} · {new Date(review.t).toLocaleDateString('ru-RU')}</p>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${review.status==='approved'?'bg-emerald-100 text-emerald-800':review.status==='rejected'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-800'}`}>
-                        {review.status==='approved'?'Опубликован':review.status==='rejected'?'Отклонён':'На проверке'}
-                      </span>
-                    </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{review.text}</p>
-                    {review.status==='pending'&&<div className="mt-4 flex flex-wrap gap-2">
-                      <button type="button" onClick={()=>setReviewStatus(review.id,'approved')} className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-bold text-white">Опубликовать</button>
-                      <button type="button" onClick={()=>setReviewStatus(review.id,'rejected')} className="rounded-full border border-red-200 px-5 py-2.5 text-sm font-bold text-red-700">Отклонить</button>
-                    </div>}
-                  </article>
+                  <ReviewModerationCard key={review.id} review={review} onModerate={setReviewStatus}/>
                 ))}</div>
-                :<div className="rounded-3xl bg-white px-6 py-12 text-center text-sm text-[var(--soft)]">Пока нет отзывов.</div>}
+                :<EmptyState>Пока нет отзывов.</EmptyState>}
             </div>
           )}
           {section==='orders'&&(
@@ -233,11 +223,12 @@ export function GlobalAdminView({me,update,publicTheme,savePublicSiteAppearance,
                 <p className="text-sm font-semibold text-[var(--soft)]">Единое окно заказов кафе</p>
                 <h2 className="mt-1 text-xl font-extrabold">Заказы <span className="text-[var(--soft)]">({publicOrders.length})</span></h2>
               </div>
+              <ErrorAlert message={orderError}/>
               {publicOrdersLoading
                 ?<p className="py-12 text-center font-semibold text-white">Загружаем заказы…</p>
                 :publicOrders.length
-                    ?publicOrders.map(order=><OrderCard key={order.id} o={order} onToggle={(orderId,status)=>setPublicOrderStatus(order.venueId||null,orderId,status)}/>)
-                    :<div className="rounded-3xl bg-white px-6 py-12 text-center text-sm text-[var(--soft)]">Заказов пока нет.</div>}
+                    ?publicOrders.map(order=><OrderCard key={order.id} o={order} onToggle={(_,status)=>changeOrderStatus(order,status)}/>)
+                    :<EmptyState>Заказов пока нет.</EmptyState>}
             </div>
           )}
         </section>

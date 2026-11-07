@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { Navigate, NavLink, useLocation } from 'react-router-dom';
 import { OrderCard } from '../features/orders/OrderCard.jsx';
+import { OrderStatusFilter, matchesOrderFilter } from '../features/orders/OrderStatusFilter.jsx';
+import { StatCard } from '../features/dashboard/StatCard.jsx';
+import { WeeklyOrdersChart } from '../features/dashboard/WeeklyOrdersChart.jsx';
 import { ProductCard, ProductForm } from '../features/products/components.jsx';
 import { MusicBtn, QrModal, SettingsModal } from '../features/settings/components.jsx';
 import { uid } from '../shared/lib/utils.js';
@@ -35,28 +38,10 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,savePub
   const pendingOrders=orders.filter(o=>!['done','cancelled'].includes(o.status));
   const filteredProducts=list.filter(p=>p.name.toLowerCase().includes(productSearch.trim().toLowerCase()));
   const filteredOrders=orders.filter(o=>{
-    const matchesFilter=orderFilter==='all'
-      ||(orderFilter==='active'&&!['done','cancelled'].includes(o.status))
-      ||o.status===orderFilter;
     const query=orderSearch.trim().toLowerCase();
-    return matchesFilter&&(!query||String(o.code).toLowerCase().includes(query)||String(o.buyerContact||'').toLowerCase().includes(query));
+    return matchesOrderFilter(o,orderFilter)&&(!query||String(o.code).toLowerCase().includes(query)||String(o.buyerContact||'').toLowerCase().includes(query));
   });
   const uniqueBuyers=new Set(orders.map(o=>o.buyerContact).filter(Boolean)).size;
-  const weekStart=new Date();
-  weekStart.setHours(0,0,0,0);
-  weekStart.setDate(weekStart.getDate()-6);
-  const weekDays=Array.from({length:7},(_,index)=>{
-    const date=new Date(weekStart);
-    date.setDate(date.getDate()+index);
-    const nextDate=new Date(date);
-    nextDate.setDate(nextDate.getDate()+1);
-    return {
-      date,
-      label:date.toLocaleDateString('ru-RU',{weekday:'short'}),
-      count:orders.filter(o=>o.t>=date.getTime()&&o.t<nextDate.getTime()).length
-    };
-  });
-  const maxDailyOrders=Math.max(1,...weekDays.map(day=>day.count));
   const recentOrders=orders.slice(0,5);
 
   // Сохранить товар: если передан editId — обновляем существующий товар,
@@ -138,24 +123,10 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,savePub
                   {label:'Новые заказы',value:pendingOrders.length,icon:'◷'},
                   {label:'Товаров в меню',value:list.length,icon:'▦'},
                   {label:'Покупателей',value:uniqueBuyers,icon:'♙'}
-                ].map(card=>(
-                  <div key={card.label} className="rounded-2xl bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between text-[var(--soft)]"><span className="text-sm font-semibold">{card.label}</span><span className="text-xl">{card.icon}</span></div>
-                    <p className="mt-3 text-3xl font-extrabold">{card.value}</p>
-                  </div>
-                ))}
+                ].map(card=><StatCard key={card.label} {...card}/>)}
               </div>
               <div className="grid xl:grid-cols-[1.2fr_1fr] gap-4">
-                <section className="rounded-2xl bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-3"><div><h3 className="font-extrabold text-lg">Заказы за неделю</h3><p className="text-sm text-[var(--soft)]">Количество заказов по дням</p></div><span className="text-2xl" aria-hidden="true">↗</span></div>
-                  <div className="mt-6 grid grid-cols-7 gap-2 items-end h-36">
-                    {weekDays.map(day=><div key={day.date.toISOString()} className="flex h-full flex-col items-center justify-end gap-2">
-                      <span className="text-xs font-bold text-[var(--soft)]">{day.count||''}</span>
-                      <div className="w-full max-w-8 rounded-t-lg bg-[var(--accent)] transition-all" style={{height:Math.max(8,day.count/maxDailyOrders*80)+'%'}}/>
-                      <span className="text-[10px] capitalize text-[var(--soft)]">{day.label}</span>
-                    </div>)}
-                  </div>
-                </section>
+                <WeeklyOrdersChart orders={orders}/>
                 <section className="rounded-2xl bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="font-extrabold text-lg">Последние заказы</h3><p className="text-sm text-[var(--soft)]">Недавняя активность</p></div><NavLink to={basePath+'/orders'} className="text-sm font-bold text-[var(--accent)]">Все →</NavLink></div>
                   <div className="space-y-3">
@@ -189,9 +160,7 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,savePub
             <div className="space-y-4">
               <div className="text-white"><p className="text-sm text-white/80">Продажи заведения</p><h2 className="text-2xl font-extrabold">Заказы <span className="text-lg text-white/70">({orders.length})</span></h2></div>
               <input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} className={inputCls+' bg-white'} placeholder="Поиск по коду или email покупателя" aria-label="Поиск заказов"/>
-              <div className="flex gap-2">
-                {[['all','Все'],['active','Активные'],['new','Новые'],['preparing','Готовятся'],['ready','Готовы'],['done','Выданы'],['cancelled','Отменены']].map(([key,label])=><button key={key} onClick={()=>setOrderFilter(key)} className={'rounded-full px-4 py-2 text-sm font-bold '+(orderFilter===key?'bg-white text-[var(--accent)]':'bg-white/20 text-white')}>{label}</button>)}
-              </div>
+              <OrderStatusFilter value={orderFilter} onChange={setOrderFilter}/>
               <div className="space-y-3">
                 {filteredOrders.length?filteredOrders.map(order=><OrderCard key={order.id} o={order} onToggle={setOrderStatus}/>):<div className="rounded-2xl bg-white/95 py-14 text-center text-[var(--soft)]">Заказы не найдены</div>}
               </div>
@@ -209,8 +178,3 @@ export function OwnerView({db,update,me,toast,theme,setTheme,publicTheme,savePub
     </div>
   );
 }
-
-// ===== Экран покупателя =====
-// В отличие от OwnerView, тут нет выбора заведения — покупатель при
-// регистрации уже привязался к одному конкретному владельцу (me.ownerId),
-// и экран всегда показывает именно его меню.
