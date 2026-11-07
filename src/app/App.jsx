@@ -14,7 +14,7 @@ import { applyTheme } from '../shared/config.js';
 import { auth } from '../shared/data/firebase.js';
 import { createLinkedProfile, createOwnerProfile, deleteSiteBanner, deleteSiteProduct, emptyDatabase, getUserProfile, moderateSiteReview, persistChanges, savePublicHomeAppearance, saveSiteBanner, saveSiteProduct, submitSiteReview, subscribeAccount, subscribeBuyerSiteOrders, subscribePublicHome, subscribePublicOrders, subscribePublicProducts, subscribeSiteBanners, subscribeSiteReviews, updatePublicOrderStatus } from '../shared/data/firestoreStore.js';
 import { rolePath } from '../shared/lib/utils.js';
-import { Bubbles, Toast } from '../shared/ui/index.jsx';
+import { Bubbles, LanguageSwitcher, Toast } from '../shared/ui/index.jsx';
 
 export function App(){
   const navigate=useNavigate();
@@ -272,6 +272,7 @@ export function App(){
         </Routes>
       </div>
       <Toast msg={msg}/>
+      <LanguageSwitcher/>
       {/* Один-единственный на всё приложение тег <audio>. Он не внутри
           OwnerView/BuyerView специально — если бы он пересоздавался при
           каждой перерисовке экрана, музыка бы постоянно перезапускалась. */}

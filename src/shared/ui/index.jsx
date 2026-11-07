@@ -1,4 +1,78 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FiGlobe } from 'react-icons/fi';
+
+export function LanguageSwitcher(){
+  const [open,setOpen]=useState(false);
+  const [language,setLanguage]=useState(()=>localStorage.getItem('coffetea-language')||'RU');
+  const rootRef=useRef(null);
+  const languages=[
+    {code:'KG',label:'Кыргызча'},
+    {code:'RU',label:'Русский'},
+    {code:'ENG',label:'English'}
+  ];
+
+  useEffect(()=>{
+    const savedLanguage=localStorage.getItem('coffetea-language')||'RU';
+    document.documentElement.lang=savedLanguage==='ENG'?'en':savedLanguage==='KG'?'ky':'ru';
+  },[]);
+
+  useEffect(()=>{
+    function closeOnOutsideClick(event){
+      if(rootRef.current&&!rootRef.current.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event){
+      if(event.key==='Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown',closeOnOutsideClick);
+    document.addEventListener('keydown',closeOnEscape);
+    return ()=>{
+      document.removeEventListener('pointerdown',closeOnOutsideClick);
+      document.removeEventListener('keydown',closeOnEscape);
+    };
+  },[]);
+
+  function chooseLanguage(code){
+    setLanguage(code);
+    localStorage.setItem('coffetea-language',code);
+    document.documentElement.lang=code==='ENG'?'en':code==='KG'?'ky':'ru';
+    window.dispatchEvent(new CustomEvent('coffetea-language-change',{detail:{language:code}}));
+    setOpen(false);
+  }
+
+  return (
+    <div ref={rootRef} className="fixed right-4 top-1/2 z-[50] -translate-y-1/2 sm:right-6">
+      {open&&(
+        <div className="absolute right-[58px] top-1/2 w-36 -translate-y-1/2 rounded-2xl border border-black/10 bg-white p-1.5 shadow-2xl shadow-black/20">
+          {languages.map(item=>(
+            <button
+              key={item.code}
+              type="button"
+              onClick={()=>chooseLanguage(item.code)}
+              aria-pressed={language===item.code}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-extrabold transition ${
+                language===item.code
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[#30251f] hover:bg-[var(--field)]'
+              }`}
+            >
+              <span>{item.label}</span>
+              <span className="text-[10px] opacity-75">{item.code}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={()=>setOpen(value=>!value)}
+        aria-label="Выбрать язык"
+        aria-expanded={open}
+        className="grid h-14 w-14 place-items-center rounded-full bg-[var(--accent)] text-white shadow-xl shadow-[var(--accent)]/30 ring-4 ring-white/80 transition hover:scale-105 active:scale-95"
+      >
+        <FiGlobe aria-hidden="true" size={25}/>
+      </button>
+    </div>
+  );
+}
 
 export function Field({label,children}){
   return <label className="block mb-3"><span className="block text-sm font-bold mb-1">{label}</span>{children}</label>;
